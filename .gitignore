@@ -34,3 +34,6 @@ go.work
 
 # Config files (uncomment if you don't want to track config files)
 # /configs/*.toml
+
+# Data files
+data/
