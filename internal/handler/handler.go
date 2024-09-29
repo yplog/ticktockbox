@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
 	"github.com/yplog/ticktockbox/internal/database"
@@ -64,8 +63,7 @@ func (h *Handler) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := uuid.New().String()
-	item := model.NewItem(id, requestBody.ExpireDate, requestBody.Data)
+	item := model.NewItem(requestBody.ExpireDate, requestBody.Data)
 
 	err = h.db.SetItem(*item)
 	if err != nil {
@@ -74,7 +72,7 @@ func (h *Handler) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "Item added successfully", "id": id})
+	json.NewEncoder(w).Encode(map[string]string{"status": "Item added successfully", "id": item.ID})
 }
 
 func (h *Handler) GetItemHandler(w http.ResponseWriter, r *http.Request) {

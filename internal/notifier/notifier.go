@@ -10,15 +10,20 @@ import (
 )
 
 type Notifier struct {
-	config         config.Config
+	useRabbitMQ  bool
+	rabbitMQURL  string
+	useWebSocket bool
+
 	wsClients      map[*websocket.Conn]bool
 	wsClientsMutex sync.RWMutex
 }
 
-func NewNotifier(config config.Config) *Notifier {
+func NewNotifier(cfg config.NotifierConfig) *Notifier {
 	return &Notifier{
-		config:    config,
-		wsClients: make(map[*websocket.Conn]bool),
+		useRabbitMQ:  cfg.UseRabbitMQ,
+		rabbitMQURL:  cfg.RabbitMQURL,
+		useWebSocket: cfg.UseWebSocket,
+		wsClients:    make(map[*websocket.Conn]bool),
 	}
 }
 
@@ -35,7 +40,7 @@ func (n *Notifier) RemoveWebSocketClient(conn *websocket.Conn) {
 }
 
 func (n *Notifier) NotifyExpiredItem(item model.Item) {
-	if n.config.Notifier.UseWebSocket {
+	if n.useWebSocket {
 		n.notifyWebSocket(item)
 	}
 }

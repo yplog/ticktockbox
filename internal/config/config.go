@@ -5,33 +5,37 @@ import (
 	"strconv"
 )
 
+type ServerConfig struct {
+	Port int
+}
+
+type DatabaseConfig struct {
+	Path string
+}
+
+type NotifierConfig struct {
+	UseRabbitMQ  bool
+	RabbitMQURL  string
+	UseWebSocket bool
+}
+
 type Config struct {
-	ServerPort int
-
-	Database struct {
-		Path string
-	}
-
-	Notifier struct {
-		UseRabbitMQ  bool
-		RabbitMQURL  string
-		UseWebSocket bool
-	}
+	Server   ServerConfig
+	Database DatabaseConfig
+	Notifier NotifierConfig
 }
 
 func Load() *Config {
 	return &Config{
-		ServerPort: getEnvAsInt("SERVER_PORT", 3000),
-		Database: struct {
-			Path string
-		}{
+		Server: ServerConfig{
+			Port: getEnvAsInt("SERVER_PORT", 3000),
+		},
+		Database: DatabaseConfig{
 			Path: getEnv("DATABASE_PATH", "./data/db"),
 		},
-		Notifier: struct {
-			UseRabbitMQ  bool
-			RabbitMQURL  string
-			UseWebSocket bool
-		}{
+		Notifier: NotifierConfig{
+			UseRabbitMQ:  getBoolEnv("NOTIFIER_USE_RABBITMQ", false),
+			RabbitMQURL:  getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 			UseWebSocket: getBoolEnv("NOTIFIER_USE_WEBSOCKET", true),
 		},
 	}

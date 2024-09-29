@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type ItemStatus string
@@ -22,7 +24,9 @@ type Item struct {
 	Data       string     `json:"data"`
 }
 
-func NewItem(id string, expireDate time.Time, data string) *Item {
+func NewItem(expireDate time.Time, data string) *Item {
+	id := uuid.New().String()
+
 	return &Item{
 		ID:         id,
 		Status:     StatusActive,

@@ -21,7 +21,7 @@ func main() {
 		log.Fatalf("Failed to load configuration")
 	}
 
-	log.Printf("Server port: %d", cfg.ServerPort)
+	log.Printf("Server port: %d", cfg.Server.Port)
 
 	db, err := database.NewDatabase(cfg.Database.Path)
 	if err != nil {
@@ -29,7 +29,7 @@ func main() {
 	}
 	defer db.Close()
 
-	notifier := notifier.NewNotifier(*cfg)
+	notifier := notifier.NewNotifier(cfg.Notifier)
 
 	h := handler.NewHandler(cfg, db, notifier)
 	http.HandleFunc("/", h.Healthcheck)
@@ -56,7 +56,7 @@ func main() {
 		}
 	}()
 
-	serverAddr := fmt.Sprintf(":%d", cfg.ServerPort)
+	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	server := &http.Server{
 		Addr:    serverAddr,
 		Handler: http.DefaultServeMux,
