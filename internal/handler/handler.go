@@ -63,16 +63,16 @@ func (h *Handler) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item := model.NewItem(requestBody.ExpireDate, requestBody.Data)
+	item := model.NewItem(requestBody.Data)
 
-	err = h.db.SetItem(*item)
+	err = h.db.SetItem(*item, requestBody.ExpireDate)
 	if err != nil {
 		http.Error(w, "Failed to save item", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "Item added successfully", "id": item.ID})
+	json.NewEncoder(w).Encode(map[string]string{"status": "Item added successfully"})
 }
 
 func (h *Handler) GetItemHandler(w http.ResponseWriter, r *http.Request) {
@@ -81,13 +81,19 @@ func (h *Handler) GetItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "Missing item ID", http.StatusBadRequest)
+	expireDateStr := r.URL.Query().Get("expireDate")
+	if expireDateStr == "" {
+		http.Error(w, "Missing expireDate", http.StatusBadRequest)
 		return
 	}
 
-	item, err := h.db.GetItem(id)
+	expireDate, err := time.Parse(time.RFC3339, expireDateStr)
+	if err != nil {
+		http.Error(w, "Invalid expireDate format", http.StatusBadRequest)
+		return
+	}
+
+	item, err := h.db.GetItem(expireDate)
 	if err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
@@ -110,7 +116,7 @@ func (h *Handler) CheckExpiredItems() {
 	now := time.Now().UTC()
 	log.Printf("Checking expired items at %s", now.Format(time.RFC3339))
 
-	expiredItems, err := h.db.GetExpiredItems(now)
+	expiredItems, expiredKeys, err := h.db.GetExpiredItemsWithKeys(now)
 
 	log.Println("Expired items:", expiredItems)
 
@@ -119,8 +125,16 @@ func (h *Handler) CheckExpiredItems() {
 		return
 	}
 
-	for _, item := range expiredItems {
-		h.notifier.NotifyExpiredItem(item)
-		h.db.DeleteItem(item.ID)
+	for i, item := range expiredItems {
+		itemObj := item
+		log.Println("Expired item:", itemObj)
+		h.notifier.NotifyExpiredItem(itemObj)
+
+		key := expiredKeys[i]
+
+		err = h.db.DeleteItem(key)
+		if err != nil {
+			log.Printf("Error deleting expired item: %v", err)
+		}
 	}
 }

@@ -1,10 +1,9 @@
 package database
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -28,21 +27,20 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-func (d *Database) SetItem(item model.Item) error {
+func (d *Database) SetItem(item model.Item, expireTime time.Time) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		item.ExpireDate = item.ExpireDate.UTC()
 		itemJSON, err := json.Marshal(item)
 		if err != nil {
 			return err
 		}
-		return txn.Set([]byte(item.ID), itemJSON)
+		return txn.Set(model.MakeKey(expireTime), itemJSON)
 	})
 }
 
-func (d *Database) GetItem(id string) (model.Item, error) {
+func (d *Database) GetItem(expireTime time.Time) (model.Item, error) {
 	var item model.Item
 	err := d.db.View(func(txn *badger.Txn) error {
-		i, err := txn.Get([]byte(id))
+		i, err := txn.Get(model.MakeKey(expireTime))
 		if err != nil {
 			return err
 		}
@@ -56,60 +54,89 @@ func (d *Database) GetItem(id string) (model.Item, error) {
 	return item, err
 }
 
-func (d *Database) DeleteItem(id string) error {
+func (d *Database) DeleteItem(key []byte) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(id))
+		return txn.Delete(key)
 	})
 }
-
-func (d *Database) GetExpiredItems(now time.Time) ([]model.Item, error) {
+func (d *Database) GetExpiredItemsWithKeys(now time.Time) ([]model.Item, [][]byte, error) {
 	var expiredItems []model.Item
-
-	log.Printf("Starting GetExpiredItems function with now=%s", now.Format(time.RFC3339))
+	var expiredKeys [][]byte
 
 	err := d.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
+		opts.Reverse = true
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		for it.Rewind(); it.Valid(); it.Next() {
+		seekKey := model.MakeKey(now)
+
+		for it.Seek(seekKey); it.Valid(); it.Next() {
 			item := it.Item()
+			k := item.Key()
+			expireTimeNano := binary.BigEndian.Uint64(k)
+			expireTime := time.Unix(0, int64(expireTimeNano))
+
+			if expireTime.After(now) {
+				continue
+			}
 
 			err := item.Value(func(v []byte) error {
-				var storedItem model.Item
-				if err := json.Unmarshal(v, &storedItem); err != nil {
-					log.Printf("Error unmarshaling item: %v", err)
+				var itemObj model.Item
+				if err := json.Unmarshal(v, &itemObj); err != nil {
 					return err
 				}
-
-				expireDate := storedItem.ExpireDate
-
-				if now.After(expireDate) || now.Equal(expireDate) {
-					expiredItems = append(expiredItems, storedItem)
-					log.Printf("Expired item found: ID=%s, ExpireDate=%s, Now=%s",
-						storedItem.ID, expireDate.Format(time.RFC3339), now.Format(time.RFC3339))
-				} else {
-					log.Printf("Item not expired: ID=%s, ExpireDate=%s, Now=%s",
-						storedItem.ID, expireDate.Format(time.RFC3339), now.Format(time.RFC3339))
-				}
+				expiredItems = append(expiredItems, itemObj)
+				expiredKeys = append(expiredKeys, item.KeyCopy(nil))
 				return nil
 			})
 			if err != nil {
-				log.Printf("Error processing item: %v", err)
 				return err
 			}
 		}
 		return nil
 	})
 
-	if err != nil {
-		log.Printf("Error in GetExpiredItems: %v", err)
-		return nil, fmt.Errorf("error getting expired items: %w", err)
-	}
+	return expiredItems, expiredKeys, err
+}
 
-	log.Printf("Total expired items found: %d", len(expiredItems))
+func (d *Database) GetExpiredItems(now time.Time) ([]model.Item, error) {
+	var expiredItems []model.Item
 
-	return expiredItems, nil
+	err := d.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.Reverse = true // Ters sıralama için
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		seekKey := model.MakeKey(now)
+
+		for it.Seek(seekKey); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			expireTimeNano := binary.BigEndian.Uint64(k)
+			expireTime := time.Unix(0, int64(expireTimeNano))
+
+			if expireTime.After(now) {
+				continue // Henüz süresi dolmamış öğeleri atla
+			}
+
+			err := item.Value(func(v []byte) error {
+				var itemObj model.Item
+				if err := json.Unmarshal(v, &itemObj); err != nil {
+					return err
+				}
+				expiredItems = append(expiredItems, itemObj)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	return expiredItems, err
 }
 
 func (d *Database) RunGC() error {
