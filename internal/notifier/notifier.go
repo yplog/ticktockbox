@@ -10,10 +10,9 @@ import (
 )
 
 type Notifier struct {
-	useRabbitMQ  bool
-	rabbitMQURL  string
-	useWebSocket bool
-
+	useRabbitMQ    bool
+	rabbitMQURL    string
+	useWebSocket   bool
 	wsClients      map[*websocket.Conn]bool
 	wsClientsMutex sync.RWMutex
 }
@@ -37,15 +36,16 @@ func (n *Notifier) RemoveWebSocketClient(conn *websocket.Conn) {
 	n.wsClientsMutex.Lock()
 	defer n.wsClientsMutex.Unlock()
 	delete(n.wsClients, conn)
+	conn.Close()
 }
 
-func (n *Notifier) NotifyExpiredItem(item model.Item) {
+func (n *Notifier) NotifyExpiredItem(item *model.Item) {
 	if n.useWebSocket {
 		n.notifyWebSocket(item)
 	}
 }
 
-func (n *Notifier) notifyWebSocket(item model.Item) {
+func (n *Notifier) notifyWebSocket(item *model.Item) {
 	n.wsClientsMutex.RLock()
 	defer n.wsClientsMutex.RUnlock()
 
@@ -53,8 +53,7 @@ func (n *Notifier) notifyWebSocket(item model.Item) {
 		err := client.WriteJSON(item)
 		if err != nil {
 			log.Printf("Error sending WebSocket message: %v", err)
-			client.Close()
-			delete(n.wsClients, client)
+			go n.RemoveWebSocketClient(client)
 		}
 	}
 }

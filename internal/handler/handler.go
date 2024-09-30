@@ -52,8 +52,7 @@ func (h *Handler) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 		ExpireDate time.Time `json:"expireDate"`
 	}
 
-	err := json.NewDecoder(r.Body).Decode(&requestBody)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -63,16 +62,30 @@ func (h *Handler) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item := model.NewItem(requestBody.Data)
+	utcExpireDate := requestBody.ExpireDate.UTC()
+	now := time.Now().UTC()
 
-	err = h.db.SetItem(*item, requestBody.ExpireDate)
-	if err != nil {
+	if utcExpireDate.Before(now) {
+		log.Printf("Warning: Attempting to add an already expired item. ExpireDate: %s, Current time: %s",
+			utcExpireDate.Format(time.RFC3339), now.Format(time.RFC3339))
+		http.Error(w, "Cannot add an already expired item", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Adding item with data: %s and UTC expire date: %s", requestBody.Data, utcExpireDate.Format(time.RFC3339))
+
+	item := model.NewItem(requestBody.Data, utcExpireDate)
+	if err := h.db.SetItem(item); err != nil {
+		log.Printf("Failed to save item: %v", err)
 		http.Error(w, "Failed to save item", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "Item added successfully"})
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":        "Item added successfully",
+		"utcExpireDate": utcExpireDate.Format(time.RFC3339),
+	})
 }
 
 func (h *Handler) GetItemHandler(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +108,7 @@ func (h *Handler) GetItemHandler(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.db.GetItem(expireDate)
 	if err != nil {
+		log.Printf("Failed to get item: %v", err)
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
@@ -105,6 +119,7 @@ func (h *Handler) GetItemHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Printf("Could not open websocket connection: %v", err)
 		http.Error(w, "Could not open websocket connection", http.StatusInternalServerError)
 		return
 	}
@@ -114,27 +129,26 @@ func (h *Handler) WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CheckExpiredItems() {
 	now := time.Now().UTC()
-	log.Printf("Checking expired items at %s", now.Format(time.RFC3339))
+	log.Printf("Checking expired items at %s (UTC)", now.Format(time.RFC3339))
 
-	expiredItems, expiredKeys, err := h.db.GetExpiredItemsWithKeys(now)
-
-	log.Println("Expired items:", expiredItems)
-
+	expiredItems, err := h.db.GetExpiredItems(now)
 	if err != nil {
-		log.Println("Error getting expired items:", err)
+		log.Printf("Error getting expired items: %v", err)
 		return
 	}
 
-	for i, item := range expiredItems {
-		itemObj := item
-		log.Println("Expired item:", itemObj)
-		h.notifier.NotifyExpiredItem(itemObj)
+	log.Printf("Found %d expired items", len(expiredItems))
 
-		key := expiredKeys[i]
+	for _, item := range expiredItems {
+		log.Printf("Processing expired item: Data=%s, ExpireTime=%s (UTC)",
+			item.Data, item.ExpireTime.UTC().Format(time.RFC3339))
 
-		err = h.db.DeleteItem(key)
-		if err != nil {
-			log.Printf("Error deleting expired item: %v", err)
+		key := model.MakeKey(item.ExpireTime.UTC())
+		if err := h.db.DeleteAndVerify(key); err != nil {
+			log.Printf("Error deleting and verifying expired item: %v", err)
+		} else {
+			h.notifier.NotifyExpiredItem(item)
+			log.Printf("Successfully deleted, verified, and notified about item: %s", item.Data)
 		}
 	}
 }

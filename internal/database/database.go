@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -16,6 +18,7 @@ type Database struct {
 
 func NewDatabase(path string) (*Database, error) {
 	opts := badger.DefaultOptions(path)
+	opts.Logger = nil
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, err
@@ -27,116 +30,114 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-func (d *Database) SetItem(item model.Item, expireTime time.Time) error {
+func (d *Database) SetItem(item *model.Item) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		itemJSON, err := json.Marshal(item)
+		key := model.MakeKey(item.ExpireTime)
+		value, err := json.Marshal(item)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to marshal item: %v", err)
 		}
-		return txn.Set(model.MakeKey(expireTime), itemJSON)
+		log.Printf("Setting item with key: %x, value: %s", key, string(value))
+		return txn.Set(key, value)
 	})
 }
 
-func (d *Database) GetItem(expireTime time.Time) (model.Item, error) {
-	var item model.Item
+func (d *Database) GetItem(expireTime time.Time) (*model.Item, error) {
+	var item *model.Item
 	err := d.db.View(func(txn *badger.Txn) error {
 		i, err := txn.Get(model.MakeKey(expireTime))
 		if err != nil {
 			return err
 		}
 		return i.Value(func(val []byte) error {
-			return json.Unmarshal(val, &item)
+			var err error
+			item, err = model.ItemFromValue(val)
+			return err
 		})
 	})
 	if err == badger.ErrKeyNotFound {
-		return item, errors.New("item not found")
+		return nil, errors.New("item not found")
 	}
 	return item, err
 }
 
 func (d *Database) DeleteItem(key []byte) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete(key)
+		err := txn.Delete(key)
+		if err != nil {
+			return fmt.Errorf("failed to delete item: %v", err)
+		}
+		log.Printf("Item with key %x successfully deleted from database", key)
+		return nil
 	})
 }
-func (d *Database) GetExpiredItemsWithKeys(now time.Time) ([]model.Item, [][]byte, error) {
-	var expiredItems []model.Item
-	var expiredKeys [][]byte
+
+func (d *Database) GetExpiredItems(now time.Time) ([]*model.Item, error) {
+	var expiredItems []*model.Item
 
 	err := d.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.Reverse = true
+		opts.PrefetchSize = 10
+		opts.Prefix = []byte(model.PrefixExpire)
 		it := txn.NewIterator(opts)
+
 		defer it.Close()
 
-		seekKey := model.MakeKey(now)
-
-		for it.Seek(seekKey); it.Valid(); it.Next() {
+		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
-			k := item.Key()
-			expireTimeNano := binary.BigEndian.Uint64(k)
-			expireTime := time.Unix(0, int64(expireTimeNano))
 
-			if expireTime.After(now) {
+			k := item.Key()
+			if len(k) < model.PrefixLength+8 {
 				continue
 			}
 
-			err := item.Value(func(v []byte) error {
-				var itemObj model.Item
-				if err := json.Unmarshal(v, &itemObj); err != nil {
-					return err
-				}
-				expiredItems = append(expiredItems, itemObj)
-				expiredKeys = append(expiredKeys, item.KeyCopy(nil))
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+			expireTimeNano := binary.BigEndian.Uint64(k[model.PrefixLength : model.PrefixLength+8])
+			expireTime := time.Unix(0, int64(expireTimeNano)).UTC()
 
-	return expiredItems, expiredKeys, err
-}
-
-func (d *Database) GetExpiredItems(now time.Time) ([]model.Item, error) {
-	var expiredItems []model.Item
-
-	err := d.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Reverse = true // Ters sıralama için
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		seekKey := model.MakeKey(now)
-
-		for it.Seek(seekKey); it.Valid(); it.Next() {
-			item := it.Item()
-			k := item.Key()
-			expireTimeNano := binary.BigEndian.Uint64(k)
-			expireTime := time.Unix(0, int64(expireTimeNano))
+			log.Printf("Checking item with key: %x, expire time: %s", k, expireTime.Format(time.RFC3339))
 
 			if expireTime.After(now) {
-				continue // Henüz süresi dolmamış öğeleri atla
+				log.Printf("Found non-expired item, stopping iteration")
+				break
 			}
-
 			err := item.Value(func(v []byte) error {
-				var itemObj model.Item
-				if err := json.Unmarshal(v, &itemObj); err != nil {
-					return err
+				log.Printf("Raw item value: %s", string(v))
+				itemObj, err := model.ItemFromValue(v)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal item: %v, raw value: %s", err, string(v))
 				}
+				itemObj.ExpireTime = expireTime
 				expiredItems = append(expiredItems, itemObj)
+				log.Printf("Added expired item to list: %+v", itemObj)
 				return nil
 			})
 			if err != nil {
 				return err
 			}
 		}
+
 		return nil
 	})
 
 	return expiredItems, err
+}
+
+func (d *Database) DeleteAndVerify(key []byte) error {
+	return d.db.Update(func(txn *badger.Txn) error {
+		if err := txn.Delete(key); err != nil {
+			return fmt.Errorf("failed to delete item: %v", err)
+		}
+
+		_, err := txn.Get(key)
+		if err == nil {
+			return fmt.Errorf("item still exists after deletion")
+		} else if err != badger.ErrKeyNotFound {
+			return fmt.Errorf("unexpected error during verification: %v", err)
+		}
+
+		log.Printf("Item with key %x successfully deleted and verified", key)
+		return nil
+	})
 }
 
 func (d *Database) RunGC() error {
