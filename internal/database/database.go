@@ -1,15 +1,7 @@
 package database
 
 import (
-	"encoding/binary"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"time"
-
 	"github.com/dgraph-io/badger/v4"
-	"github.com/yplog/ticktockbox/internal/model"
 )
 
 type Database struct {
@@ -30,7 +22,7 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-func (d *Database) SetItem(item *model.Item) error {
+/*func (d *Database) SetItem(item *model.Item) error {
 	return d.db.Update(func(txn *badger.Txn) error {
 		key := model.MakeKey(item.ExpireTime)
 		value, err := json.Marshal(item)
@@ -138,7 +130,7 @@ func (d *Database) DeleteAndVerify(key []byte) error {
 		log.Printf("Item with key %x successfully deleted and verified", key)
 		return nil
 	})
-}
+}*/
 
 func (d *Database) RunGC() error {
 	return d.db.RunValueLogGC(0.5)

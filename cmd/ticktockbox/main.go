@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,12 +30,13 @@ func main() {
 	}
 	defer db.Close()
 
-	notifier := notifier.NewNotifier(cfg.Notifier)
+	n := notifier.NewNotifier(cfg.Notifier)
 
-	h := handler.NewHandler(cfg, db, notifier)
+	h := handler.NewHandler(cfg, db, n)
 	http.HandleFunc("/", h.Healthcheck)
-	http.HandleFunc("/add", h.AddItemHandler)
-	http.HandleFunc("/get", h.GetItemHandler)
+	http.HandleFunc("/create", h.CreateHandler)
+	// http.HandleFunc("/get", h.ShowHandler)
+	http.HandleFunc("/list", h.ListHandler)
 	if cfg.Notifier.UseWebSocket {
 		http.HandleFunc("/ws", h.WebSocketHandler)
 	}
@@ -43,11 +45,12 @@ func main() {
 		// TODO: Interval should be configurable
 		ticker := time.NewTicker(time.Duration(1) * time.Second)
 		for range ticker.C {
-			h.CheckExpiredItems()
+			//h.CheckExpiredItems()
 		}
 	}()
 
 	go func() {
+		// TODO: GC Interval should be configurable
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
 			if err := db.RunGC(); err != nil {
@@ -64,7 +67,8 @@ func main() {
 
 	go func() {
 		log.Printf("Server starting on %s", serverAddr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server failed to start: %v", err)
 		}
 	}()

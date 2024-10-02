@@ -1,12 +1,10 @@
 package notifier
 
 import (
-	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
-	"github.com/yplog/ticktockbox/internal/model"
 )
 
 type Notifier struct {
@@ -39,7 +37,7 @@ func (n *Notifier) RemoveWebSocketClient(conn *websocket.Conn) {
 	conn.Close()
 }
 
-func (n *Notifier) NotifyExpiredItem(item *model.Item) {
+/*func (n *Notifier) NotifyExpiredItem(item *model.Item) {
 	if n.useWebSocket {
 		n.notifyWebSocket(item)
 	}
@@ -56,4 +54,4 @@ func (n *Notifier) notifyWebSocket(item *model.Item) {
 			go n.RemoveWebSocketClient(client)
 		}
 	}
-}
+}*/
