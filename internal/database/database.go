@@ -1,12 +1,18 @@
 package database
 
 import (
+	"errors"
 	"github.com/dgraph-io/badger/v4"
+	"github.com/yplog/ticktockbox/internal/model"
 )
 
 type Database struct {
 	db *badger.DB
 }
+
+var (
+	idKey = []byte("last_id")
+)
 
 func NewDatabase(path string) (*Database, error) {
 	opts := badger.DefaultOptions(path)
@@ -20,6 +26,38 @@ func NewDatabase(path string) (*Database, error) {
 
 func (d *Database) Close() error {
 	return d.db.Close()
+}
+
+func (d *Database) FindNextID() (model.ID, error) {
+	var nextID model.ID
+
+	err := d.db.Update(func(txn *badger.Txn) error {
+		item, err := txn.Get(idKey)
+		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				nextID = model.ID(1)
+				return txn.Set(idKey, nextID.ToBytes())
+			}
+			return err
+		}
+
+		err = item.Value(func(val []byte) error {
+			currentID := model.IDFromBytes(val)
+			nextID = model.ID(currentID.ToUint64() + 1)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		return txn.Set(idKey, nextID.ToBytes())
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return nextID, nil
 }
 
 /*func (d *Database) SetItem(item *model.Item) error {
