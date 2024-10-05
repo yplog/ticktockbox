@@ -1,37 +1,42 @@
 package model
 
 import (
-	"encoding/binary"
+	"encoding/json"
+	"log"
 	"time"
 )
 
 type ExpireData struct {
-	Id         uint64 `json:"id"`
 	ExpireTime uint64 `json:"expire_time"`
 }
 
-func NewExpireData(id uint64, expireTime time.Time) *ExpireData {
+func NewExpireData(expireTime time.Time) *ExpireData {
 	return &ExpireData{
-		Id:         id,
 		ExpireTime: uint64(expireTime.UnixNano()),
 	}
 }
 
 func (e *ExpireData) ToBytes() []byte {
-	buf := make([]byte, 16)
+	data, err := json.Marshal(e)
+	if err != nil {
+		log.Printf("Failed to marshal ExpireData: %v", err)
+		return nil
+	}
+	return data
+}
 
-	binary.BigEndian.PutUint64(buf[:8], e.Id)
-	binary.BigEndian.PutUint64(buf[8:], e.ExpireTime)
-
-	return buf
+func (e *ExpireData) ToTime() time.Time {
+	return time.Unix(0, int64(e.ExpireTime))
 }
 
 func ExpireDataFromBytes(data []byte) *ExpireData {
-	id := binary.BigEndian.Uint64(data[:8])
-	expireTime := binary.BigEndian.Uint64(data[8:])
+	var e ExpireData
 
-	return &ExpireData{
-		Id:         id,
-		ExpireTime: expireTime,
+	err := json.Unmarshal(data, &e)
+	if err != nil {
+		log.Printf("Failed to unmarshal ExpireData: %v", err)
+		return nil
 	}
+
+	return &e
 }

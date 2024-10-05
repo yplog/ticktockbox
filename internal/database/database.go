@@ -1,9 +1,12 @@
 package database
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/yplog/ticktockbox/internal/model"
+	"log"
 )
 
 type Database struct {
@@ -11,7 +14,9 @@ type Database struct {
 }
 
 var (
-	idKey = []byte("last_id")
+	idKey        = []byte("last_id")
+	expirePrefix = []byte("expire_")
+	dataPrefix   = []byte("data_")
 )
 
 func NewDatabase(path string) (*Database, error) {
@@ -28,7 +33,7 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-func (d *Database) FindNextID() (model.ID, error) {
+func (d *Database) GetNextID() (model.ID, error) {
 	var nextID model.ID
 
 	err := d.db.Update(func(txn *badger.Txn) error {
@@ -60,19 +65,84 @@ func (d *Database) FindNextID() (model.ID, error) {
 	return nextID, nil
 }
 
-/*func (d *Database) SetItem(item *model.Item) error {
+func (d *Database) SetExpireData(key *model.ID, value *model.ExpireData) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		key := model.MakeKey(item.ExpireTime)
-		value, err := json.Marshal(item)
+		value, err := json.Marshal(value)
+
 		if err != nil {
 			return fmt.Errorf("failed to marshal item: %v", err)
 		}
-		log.Printf("Setting item with key: %x, value: %s", key, string(value))
-		return txn.Set(key, value)
+
+		kwp := makeKeyWithPrefix(expirePrefix, key)
+
+		log.Printf("Setting ExpireData with key: %s, value: %s", string(kwp), string(value))
+
+		return txn.Set(kwp, value)
 	})
 }
 
-func (d *Database) GetItem(expireTime time.Time) (*model.Item, error) {
+func (d *Database) SetData(key *model.ID, value *model.Data) error {
+	return d.db.Update(func(txn *badger.Txn) error {
+		value, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("failed to marshal item: %v", err)
+		}
+
+		kwp := makeKeyWithPrefix(dataPrefix, key)
+
+		log.Printf("Setting Data with key: %s, value: %s", string(kwp), string(value))
+
+		return txn.Set(kwp, value)
+	})
+}
+
+func (d *Database) GetExpireData(key *model.ID) (*model.ExpireData, error) {
+	var value *model.ExpireData
+
+	err := d.db.View(func(txn *badger.Txn) error {
+		kwp := makeKeyWithPrefix(expirePrefix, key)
+
+		i, err := txn.Get(kwp)
+		if err != nil {
+			return err
+		}
+		return i.Value(func(val []byte) error {
+			var err error
+			value = model.ExpireDataFromBytes(val)
+			return err
+		})
+	})
+	if errors.Is(err, badger.ErrKeyNotFound) {
+		return nil, errors.New("item not found")
+	}
+
+	return value, err
+}
+
+func (d *Database) GetData(key *model.ID) (*model.Data, error) {
+	var data *model.Data
+
+	err := d.db.View(func(txn *badger.Txn) error {
+		kwp := makeKeyWithPrefix(dataPrefix, key)
+
+		i, err := txn.Get(kwp)
+		if err != nil {
+			return err
+		}
+		return i.Value(func(val []byte) error {
+			var err error
+			data = model.DataFromBytes(val)
+			return err
+		})
+	})
+	if errors.Is(err, badger.ErrKeyNotFound) {
+		return nil, errors.New("item not found")
+	}
+
+	return data, err
+}
+
+/*func (d *Database) GetItem(expireTime time.Time) (*model.Item, error) {
 	var item *model.Item
 	err := d.db.View(func(txn *badger.Txn) error {
 		i, err := txn.Get(model.MakeKey(expireTime))
@@ -85,11 +155,11 @@ func (d *Database) GetItem(expireTime time.Time) (*model.Item, error) {
 			return err
 		})
 	})
-	if err == badger.ErrKeyNotFound {
+	if errors.Is(err, badger.ErrKeyNotFound) {
 		return nil, errors.New("item not found")
 	}
 	return item, err
-}
+}*/
 
 func (d *Database) DeleteItem(key []byte) error {
 	return d.db.Update(func(txn *badger.Txn) error {
@@ -102,7 +172,7 @@ func (d *Database) DeleteItem(key []byte) error {
 	})
 }
 
-func (d *Database) GetExpiredItems(now time.Time) ([]*model.Item, error) {
+/*func (d *Database) GetExpiredItems(now time.Time) ([]*model.Item, error) {
 	var expiredItems []*model.Item
 
 	err := d.db.View(func(txn *badger.Txn) error {
@@ -150,26 +220,14 @@ func (d *Database) GetExpiredItems(now time.Time) ([]*model.Item, error) {
 	})
 
 	return expiredItems, err
-}
-
-func (d *Database) DeleteAndVerify(key []byte) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Delete(key); err != nil {
-			return fmt.Errorf("failed to delete item: %v", err)
-		}
-
-		_, err := txn.Get(key)
-		if err == nil {
-			return fmt.Errorf("item still exists after deletion")
-		} else if err != badger.ErrKeyNotFound {
-			return fmt.Errorf("unexpected error during verification: %v", err)
-		}
-
-		log.Printf("Item with key %x successfully deleted and verified", key)
-		return nil
-	})
 }*/
 
 func (d *Database) RunGC() error {
 	return d.db.RunValueLogGC(0.5)
+}
+
+func makeKeyWithPrefix(prefix []byte, key *model.ID) []byte {
+	keyBytes := key.ToBytes()
+
+	return append(prefix, keyBytes...)
 }

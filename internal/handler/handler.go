@@ -3,28 +3,19 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
-	"strconv"
-	"time"
-
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
 	"github.com/yplog/ticktockbox/internal/database"
 	"github.com/yplog/ticktockbox/internal/model"
 	"github.com/yplog/ticktockbox/internal/notifier"
+	"log"
+	"net/http"
 )
 
 type Handler struct {
 	cfg      *config.Config
 	db       *database.Database
 	notifier *notifier.Notifier
-}
-
-type RequestData struct {
-	Timezone string                 `json:"timezone"`
-	Expire   string                 `json:"expire"`
-	Data     map[string]interface{} `json:"data"`
 }
 
 var upgrader = websocket.Upgrader{
@@ -55,41 +46,43 @@ func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var reqData RequestData
-	if err := json.NewDecoder(r.Body).Decode(&reqData); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	reqLoc, err := time.LoadLocation(reqData.Timezone)
+	reqData, err := DecodeRequestBody(r)
 	if err != nil {
-		http.Error(w, "Invalid timezone", http.StatusBadRequest)
+		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
 		return
 	}
 
-	expire, err := time.ParseInLocation(time.RFC3339, reqData.Expire, reqLoc)
+	id, err := h.db.GetNextID()
 	if err != nil {
-		http.Error(w, "Invalid expire time", http.StatusBadRequest)
+		log.Printf("Failed to get next ID: %v", err)
+		http.Error(w, "Failed to get next ID", http.StatusInternalServerError)
 		return
 	}
 
-	localLoc, err := time.LoadLocation("Local")
-	if err != nil {
-		http.Error(w, "Failed to load local timezone", http.StatusInternalServerError)
-		return
-	}
-
-	localExpire := expire.In(localLoc)
-	key := strconv.FormatInt(localExpire.UnixNano(), 10)
+	fmt.Println("id", id)
 
 	data := model.NewData(reqData.Data)
+	expireData := model.NewExpireData(reqData.Expire)
+
+	err = h.db.SetExpireData(&id, expireData)
+	if err != nil {
+		log.Printf("Failed to set expire data: %v", err)
+		http.Error(w, "Failed to get next ID", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.db.SetData(&id, data)
+	if err != nil {
+		log.Printf("Failed to set data: %v", err)
+		http.Error(w, "Failed to set data", http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
-		"key":           key,
-		"local_expires": localExpire.Format(time.RFC3339),
-		"expires":       expire.Format(time.RFC3339),
-		"data":          fmt.Sprintf("%v", data.Content),
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"key":     id.ToUint64(),
+		"expires": expireData.ToTime(),
+		"data":    data.Content,
 	})
 }
 
