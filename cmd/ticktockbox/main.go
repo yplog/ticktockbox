@@ -24,11 +24,10 @@ func main() {
 
 	log.Printf("Server port: %d", cfg.Server.Port)
 
-	db, err := database.NewDatabase(cfg.Database.Path)
+	db, err := database.InitDatabase()
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
 
 	n := notifier.NewNotifier(cfg.Notifier)
 
@@ -46,16 +45,6 @@ func main() {
 		ticker := time.NewTicker(time.Duration(1) * time.Second)
 		for range ticker.C {
 			//h.CheckExpiredItems()
-		}
-	}()
-
-	go func() {
-		// TODO: GC Interval should be configurable
-		ticker := time.NewTicker(1 * time.Hour)
-		for range ticker.C {
-			if err := db.RunGC(); err != nil {
-				log.Printf("Error running database GC: %v", err)
-			}
 		}
 	}()
 
