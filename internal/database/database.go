@@ -1,145 +1,146 @@
 package database
 
 import (
-	"encoding/binary"
+	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
-	"time"
-
-	"github.com/dgraph-io/badger/v4"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/yplog/ticktockbox/internal/model"
+	"log"
+	"strings"
+	"time"
 )
 
 type Database struct {
-	db *badger.DB
+	DB *sql.DB
 }
 
-func NewDatabase(path string) (*Database, error) {
-	opts := badger.DefaultOptions(path)
-	opts.Logger = nil
-	db, err := badger.Open(opts)
+func InitDatabase() (*Database, error) {
+	db, err := sql.Open("sqlite3", "./data/data.db")
 	if err != nil {
 		return nil, err
 	}
-	return &Database{db: db}, nil
-}
 
-func (d *Database) Close() error {
-	return d.db.Close()
-}
-
-func (d *Database) SetItem(item *model.Item) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		key := model.MakeKey(item.ExpireTime)
-		value, err := json.Marshal(item)
-		if err != nil {
-			return fmt.Errorf("failed to marshal item: %v", err)
-		}
-		log.Printf("Setting item with key: %x, value: %s", key, string(value))
-		return txn.Set(key, value)
-	})
-}
-
-func (d *Database) GetItem(expireTime time.Time) (*model.Item, error) {
-	var item *model.Item
-	err := d.db.View(func(txn *badger.Txn) error {
-		i, err := txn.Get(model.MakeKey(expireTime))
-		if err != nil {
-			return err
-		}
-		return i.Value(func(val []byte) error {
-			var err error
-			item, err = model.ItemFromValue(val)
-			return err
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		return nil, errors.New("item not found")
+	createTableQuery := `
+    CREATE TABLE IF NOT EXISTS records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expire DATETIME,
+        data TEXT
+    );
+    `
+	_, err = db.Exec(createTableQuery)
+	if err != nil {
+		return nil, err
 	}
-	return item, err
+
+	log.Println("Database initialized and table created")
+	return &Database{DB: db}, nil
 }
 
-func (d *Database) DeleteItem(key []byte) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		err := txn.Delete(key)
-		if err != nil {
-			return fmt.Errorf("failed to delete item: %v", err)
+func (db *Database) CreateRecord(record *model.Record) (*model.Record, error) {
+	stmt, err := db.DB.Prepare("INSERT INTO records(expire, data) VALUES(?, ?)")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			log.Println("Error closing statement:", err)
 		}
-		log.Printf("Item with key %x successfully deleted from database", key)
-		return nil
-	})
+	}()
+
+	jsonData, err := record.SerializeData()
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := stmt.Exec(record.Expire, jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	record.ID = int(id)
+
+	return record, nil
 }
 
-func (d *Database) GetExpiredItems(now time.Time) ([]*model.Item, error) {
-	var expiredItems []*model.Item
+func (db *Database) GetExpireRecords() ([]*model.Record, error) {
+	rows, err := db.DB.Query("SELECT id, expire, data FROM records WHERE expire <= datetime('now')")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Println("Error closing rows:", err)
+		}
+	}()
 
-	err := d.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchSize = 10
-		opts.Prefix = []byte(model.PrefixExpire)
-		it := txn.NewIterator(opts)
+	var records []*model.Record
+	for rows.Next() {
+		var id int
+		var expire time.Time
+		var jsonDataStr string
 
-		defer it.Close()
-
-		for it.Rewind(); it.Valid(); it.Next() {
-			item := it.Item()
-
-			k := item.Key()
-			if len(k) < model.PrefixLength+8 {
-				continue
-			}
-
-			expireTimeNano := binary.BigEndian.Uint64(k[model.PrefixLength : model.PrefixLength+8])
-			expireTime := time.Unix(0, int64(expireTimeNano)).UTC()
-
-			log.Printf("Checking item with key: %x, expire time: %s", k, expireTime.Format(time.RFC3339))
-
-			if expireTime.After(now) {
-				log.Printf("Found non-expired item, stopping iteration")
-				break
-			}
-			err := item.Value(func(v []byte) error {
-				log.Printf("Raw item value: %s", string(v))
-				itemObj, err := model.ItemFromValue(v)
-				if err != nil {
-					return fmt.Errorf("failed to unmarshal item: %v, raw value: %s", err, string(v))
-				}
-				itemObj.ExpireTime = expireTime
-				expiredItems = append(expiredItems, itemObj)
-				log.Printf("Added expired item to list: %+v", itemObj)
-				return nil
-			})
-			if err != nil {
-				return err
-			}
+		if err := rows.Scan(&id, &expire, &jsonDataStr); err != nil {
+			return nil, err
 		}
 
-		return nil
-	})
+		var jsonData map[string]interface{}
+		if err := json.Unmarshal([]byte(jsonDataStr), &jsonData); err != nil {
+			return nil, err
+		}
 
-	return expiredItems, err
+		record := model.NewRecordWithID(id, expire, jsonData)
+		records = append(records, record)
+	}
+
+	return records, nil
 }
 
-func (d *Database) DeleteAndVerify(key []byte) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Delete(key); err != nil {
-			return fmt.Errorf("failed to delete item: %v", err)
+func (db *Database) DeleteRecords(ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("no ids provided")
+	}
+
+	placeholders := make([]string, len(ids))
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+
+	query := fmt.Sprintf("DELETE FROM records WHERE id IN (%s)", strings.Join(placeholders, ","))
+
+	stmt, err := db.DB.Prepare(query)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			log.Println("Error closing statement:", err)
 		}
+	}()
 
-		_, err := txn.Get(key)
-		if err == nil {
-			return fmt.Errorf("item still exists after deletion")
-		} else if err != badger.ErrKeyNotFound {
-			return fmt.Errorf("unexpected error during verification: %v", err)
-		}
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
 
-		log.Printf("Item with key %x successfully deleted and verified", key)
-		return nil
-	})
-}
+	result, err := stmt.Exec(args...)
+	if err != nil {
+		return 0, err
+	}
 
-func (d *Database) RunGC() error {
-	return d.db.RunValueLogGC(0.5)
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	if rowsAffected == 0 {
+		return 0, sql.ErrNoRows
+	}
+
+	return rowsAffected, nil
 }

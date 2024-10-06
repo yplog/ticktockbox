@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,18 +24,16 @@ func main() {
 
 	log.Printf("Server port: %d", cfg.Server.Port)
 
-	db, err := database.NewDatabase(cfg.Database.Path)
+	db, err := database.InitDatabase()
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
 
-	notifier := notifier.NewNotifier(cfg.Notifier)
+	n := notifier.NewNotifier(cfg.Notifier)
 
-	h := handler.NewHandler(cfg, db, notifier)
+	h := handler.NewHandler(cfg, db, n)
 	http.HandleFunc("/", h.Healthcheck)
-	http.HandleFunc("/add", h.AddItemHandler)
-	http.HandleFunc("/get", h.GetItemHandler)
+	http.HandleFunc("/create", h.CreateHandler)
 	if cfg.Notifier.UseWebSocket {
 		http.HandleFunc("/ws", h.WebSocketHandler)
 	}
@@ -43,16 +42,7 @@ func main() {
 		// TODO: Interval should be configurable
 		ticker := time.NewTicker(time.Duration(1) * time.Second)
 		for range ticker.C {
-			h.CheckExpiredItems()
-		}
-	}()
-
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		for range ticker.C {
-			if err := db.RunGC(); err != nil {
-				log.Printf("Error running database GC: %v", err)
-			}
+			h.GetExpireRecordsHandler()
 		}
 	}()
 
@@ -64,7 +54,8 @@ func main() {
 
 	go func() {
 		log.Printf("Server starting on %s", serverAddr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server failed to start: %v", err)
 		}
 	}()

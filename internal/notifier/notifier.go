@@ -1,12 +1,12 @@
 package notifier
 
 import (
+	"github.com/yplog/ticktockbox/internal/model"
 	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
-	"github.com/yplog/ticktockbox/internal/model"
 )
 
 type Notifier struct {
@@ -39,18 +39,18 @@ func (n *Notifier) RemoveWebSocketClient(conn *websocket.Conn) {
 	conn.Close()
 }
 
-func (n *Notifier) NotifyExpiredItem(item *model.Item) {
+func (n *Notifier) NotifyExpiredItem(record *model.Record) {
 	if n.useWebSocket {
-		n.notifyWebSocket(item)
+		n.notifyWebSocket(record)
 	}
 }
 
-func (n *Notifier) notifyWebSocket(item *model.Item) {
+func (n *Notifier) notifyWebSocket(record *model.Record) {
 	n.wsClientsMutex.RLock()
 	defer n.wsClientsMutex.RUnlock()
 
 	for client := range n.wsClients {
-		err := client.WriteJSON(item)
+		err := client.WriteJSON(record)
 		if err != nil {
 			log.Printf("Error sending WebSocket message: %v", err)
 			go n.RemoveWebSocketClient(client)
