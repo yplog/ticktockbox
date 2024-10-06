@@ -18,6 +18,14 @@ func NewRecord(expire time.Time, data map[string]interface{}) *Record {
 	}
 }
 
+func NewRecordWithID(id int, expire time.Time, data map[string]interface{}) *Record {
+	return &Record{
+		ID:     id,
+		Expire: expire,
+		Data:   data,
+	}
+}
+
 func (r *Record) ToJSON() map[string]interface{} {
 	return map[string]interface{}{
 		"id":     r.ID,

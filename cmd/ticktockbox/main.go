@@ -34,8 +34,6 @@ func main() {
 	h := handler.NewHandler(cfg, db, n)
 	http.HandleFunc("/", h.Healthcheck)
 	http.HandleFunc("/create", h.CreateHandler)
-	// http.HandleFunc("/get", h.ShowHandler)
-	http.HandleFunc("/list", h.ListHandler)
 	if cfg.Notifier.UseWebSocket {
 		http.HandleFunc("/ws", h.WebSocketHandler)
 	}
@@ -44,7 +42,7 @@ func main() {
 		// TODO: Interval should be configurable
 		ticker := time.NewTicker(time.Duration(1) * time.Second)
 		for range ticker.C {
-			//h.CheckExpiredItems()
+			h.GetExpireRecordsHandler()
 		}
 	}()
 

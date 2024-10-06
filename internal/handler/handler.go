@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
 	"github.com/yplog/ticktockbox/internal/database"
@@ -10,6 +9,7 @@ import (
 	"github.com/yplog/ticktockbox/internal/notifier"
 	"log"
 	"net/http"
+	"time"
 )
 
 type Handler struct {
@@ -65,8 +65,35 @@ func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(record.ToJSON())
 }
 
-func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("GetAllItem")
+func (h *Handler) GetExpireRecordsHandler() {
+	expiredRecords, err := h.db.GetExpireRecords()
+	if err != nil {
+		log.Printf("Failed to get expire records: %v", err)
+		return
+	}
+
+	log.Printf("Found %d expired items", len(expiredRecords))
+
+	for _, record := range expiredRecords {
+		log.Printf("Processing expired item: Data=%s, ExpireTime=%s (UTC)",
+			record.Data, record.Expire.UTC().Format(time.RFC3339))
+
+		h.notifier.NotifyExpiredItem(record)
+		log.Printf("Successfully deleted, verified, and notified about item: %s", record.Data)
+	}
+
+	var ids []int
+	for _, record := range expiredRecords {
+		ids = append(ids, record.ID)
+	}
+
+	_, err = h.db.DeleteRecords(ids)
+	if err != nil {
+		log.Printf("Failed to delete records: %v", err)
+		return
+	}
+
+	log.Printf("Successfully deleted records: %v", ids)
 }
 
 func (h *Handler) WebSocketHandler(w http.ResponseWriter, r *http.Request) {

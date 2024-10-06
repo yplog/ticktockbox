@@ -2,11 +2,13 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/yplog/ticktockbox/internal/model"
 	"log"
 	"strings"
+	"time"
 )
 
 type Database struct {
@@ -64,6 +66,39 @@ func (db *Database) CreateRecord(record *model.Record) (*model.Record, error) {
 	record.ID = int(id)
 
 	return record, nil
+}
+
+func (db *Database) GetExpireRecords() ([]*model.Record, error) {
+	rows, err := db.DB.Query("SELECT id, expire, data FROM records WHERE expire <= datetime('now')")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Println("Error closing rows:", err)
+		}
+	}()
+
+	var records []*model.Record
+	for rows.Next() {
+		var id int
+		var expire time.Time
+		var jsonDataStr string
+
+		if err := rows.Scan(&id, &expire, &jsonDataStr); err != nil {
+			return nil, err
+		}
+
+		var jsonData map[string]interface{}
+		if err := json.Unmarshal([]byte(jsonDataStr), &jsonData); err != nil {
+			return nil, err
+		}
+
+		record := model.NewRecordWithID(id, expire, jsonData)
+		records = append(records, record)
+	}
+
+	return records, nil
 }
 
 func (db *Database) DeleteRecords(ids []int) (int64, error) {
