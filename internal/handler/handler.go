@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
 	"github.com/yplog/ticktockbox/internal/database"
@@ -36,19 +35,18 @@ func NewHandler(cfg *config.Config, db *database.Database, notifier *notifier.No
 }
 
 func (h *Handler) Healthcheck(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	WriteJSONResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		WriteErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	reqData, err := DecodeRequestBody(r)
 	if err != nil {
-		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
+		WriteErrorResponse(w, http.StatusBadRequest, "Failed to decode request body")
 		return
 	}
 
@@ -57,12 +55,11 @@ func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 	record, err := h.db.CreateRecord(data)
 	if err != nil {
 		log.Printf("Failed to create data: %v", err)
-		http.Error(w, "Failed to create data", http.StatusInternalServerError)
+		WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create data")
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(record.ToJSON())
+	WriteJSONResponse(w, http.StatusCreated, record.ToJSON())
 }
 
 func (h *Handler) GetExpireRecordsHandler() {
