@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"log"
 	"os"
 	"strconv"
 
@@ -18,8 +20,11 @@ type DatabaseConfig struct {
 
 type NotifierConfig struct {
 	UseRabbitMQ  bool
-	RabbitMQURL  string
+	UseRedis     bool
 	UseWebSocket bool
+
+	RabbitMQURL string
+	RedisURL    string
 }
 
 type Config struct {
@@ -44,10 +49,22 @@ func Load() *Config {
 		},
 		Notifier: NotifierConfig{
 			UseRabbitMQ:  getBoolEnv("NOTIFIER_USE_RABBITMQ", false),
-			RabbitMQURL:  getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+			UseRedis:     getBoolEnv("NOTIFIER_USE_REDIS", false),
 			UseWebSocket: getBoolEnv("NOTIFIER_USE_WEBSOCKET", true),
+
+			RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+			RedisURL:    getEnv("REDIS_URL", "redis://username:password@localhost:6379/"),
 		},
 	}
+}
+
+func (c *Config) Log() {
+	indentJSON, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		log.Fatalf("JSON marshal error: %v", err)
+	}
+
+	log.Println("Loaded Config:", string(indentJSON))
 }
 
 func getEnv(key, defaultValue string) string {

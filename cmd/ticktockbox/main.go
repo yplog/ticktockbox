@@ -22,7 +22,7 @@ func main() {
 		log.Fatalf("Failed to load configuration")
 	}
 
-	log.Printf("Loaded configuration: %+v", cfg)
+	cfg.Log()
 
 	db, err := database.InitDatabase(cfg.Database.Path)
 	if err != nil {
