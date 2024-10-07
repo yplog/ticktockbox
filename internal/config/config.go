@@ -14,8 +14,8 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Path    string
-	Checker uint8
+	Path            string
+	CheckerInterval uint8
 }
 
 type NotifierConfig struct {
@@ -44,8 +44,8 @@ func Load() *Config {
 			Port: getEnvAsInt("SERVER_PORT", 3000),
 		},
 		Database: DatabaseConfig{
-			Path:    getEnv("DATABASE_PATH", "./data/data.db"),
-			Checker: uint8(getEnvAsInt("DATABASE_CHECKER_INTERVAL", 1)),
+			Path:            getEnv("DATABASE_PATH", "./data/data.db"),
+			CheckerInterval: uint8(getEnvAsInt("DATABASE_CHECKER_INTERVAL", 1)),
 		},
 		Notifier: NotifierConfig{
 			UseRabbitMQ:  getBoolEnv("NOTIFIER_USE_RABBITMQ", false),

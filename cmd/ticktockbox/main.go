@@ -39,7 +39,7 @@ func main() {
 	}
 
 	go func() {
-		ticker := time.NewTicker(time.Duration(cfg.Database.Checker) * time.Second)
+		ticker := time.NewTicker(time.Duration(cfg.Database.CheckerInterval) * time.Second)
 		for range ticker.C {
 			h.GetExpireRecordsHandler()
 		}
