@@ -4,19 +4,20 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/yplog/ticktockbox/internal/model"
 	"log"
 	"strings"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/yplog/ticktockbox/internal/model"
 )
 
 type Database struct {
 	DB *sql.DB
 }
 
-func InitDatabase() (*Database, error) {
-	db, err := sql.Open("sqlite3", "./data/data.db")
+func InitDatabase(path string) (*Database, error) {
+	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
 	}

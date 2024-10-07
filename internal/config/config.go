@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type ServerConfig struct {
@@ -10,7 +12,8 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Path string
+	Path    string
+	Checker uint8
 }
 
 type NotifierConfig struct {
@@ -26,12 +29,18 @@ type Config struct {
 }
 
 func Load() *Config {
+	err := godotenv.Load()
+	if err != nil {
+		return nil
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port: getEnvAsInt("SERVER_PORT", 3000),
 		},
 		Database: DatabaseConfig{
-			Path: getEnv("DATABASE_PATH", "./data/db"),
+			Path:    getEnv("DATABASE_PATH", "./data/data.db"),
+			Checker: uint8(getEnvAsInt("DATABASE_CHECKER_INTERVAL", 1)),
 		},
 		Notifier: NotifierConfig{
 			UseRabbitMQ:  getBoolEnv("NOTIFIER_USE_RABBITMQ", false),
