@@ -22,16 +22,16 @@ func main() {
 		log.Fatalf("Failed to load configuration")
 	}
 
-	log.Printf("Server port: %d", cfg.Server.Port)
+	cfg.Log()
 
-	db, err := database.InitDatabase()
+	db, err := database.InitDatabase(cfg.Database.Path)
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
 	n := notifier.NewNotifier(cfg.Notifier)
-
 	h := handler.NewHandler(cfg, db, n)
+
 	http.HandleFunc("/", h.Healthcheck)
 	http.HandleFunc("/create", h.CreateHandler)
 	if cfg.Notifier.UseWebSocket {
@@ -39,8 +39,7 @@ func main() {
 	}
 
 	go func() {
-		// TODO: Interval should be configurable
-		ticker := time.NewTicker(time.Duration(1) * time.Second)
+		ticker := time.NewTicker(time.Duration(cfg.Database.CheckerInterval) * time.Second)
 		for range ticker.C {
 			h.GetExpireRecordsHandler()
 		}
