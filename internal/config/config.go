@@ -23,8 +23,9 @@ type NotifierConfig struct {
 	UseRedis     bool
 	UseWebSocket bool
 
-	RabbitMQURL string
-	RedisURL    string
+	RabbitMQURL       string
+	RabbitMQQueueName string
+	RedisURL          string
 }
 
 type Config struct {
@@ -52,8 +53,9 @@ func Load() *Config {
 			UseRedis:     getBoolEnv("NOTIFIER_USE_REDIS", false),
 			UseWebSocket: getBoolEnv("NOTIFIER_USE_WEBSOCKET", true),
 
-			RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
-			RedisURL:    getEnv("REDIS_URL", "redis://username:password@localhost:6379/"),
+			RabbitMQURL:       getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+			RabbitMQQueueName: getEnv("RABBITMQ_QUEUE_NAME", "test_queue"),
+			RedisURL:          getEnv("REDIS_URL", "redis://username:password@localhost:6379/"),
 		},
 	}
 }
