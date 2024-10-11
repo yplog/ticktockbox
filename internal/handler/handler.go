@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/yplog/ticktockbox/internal/config"
 	"github.com/yplog/ticktockbox/internal/database"
@@ -46,7 +47,7 @@ func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	reqData, err := DecodeRequestBody(r)
 	if err != nil {
-		WriteErrorResponse(w, http.StatusBadRequest, "Failed to decode request body")
+		WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
@@ -54,7 +55,6 @@ func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	record, err := h.db.CreateRecord(data)
 	if err != nil {
-		log.Printf("Failed to create data: %v", err)
 		WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create data")
 		return
 	}
