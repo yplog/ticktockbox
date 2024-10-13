@@ -1,0 +1,10 @@
+tmp_dir = "./build/air/tmp"
+
+[build]
+cmd = "go build -o ./build/air/main ./cmd/ticktockbox"
+bin = "build/air/main"
+full_bin = "build/air/main"
+watch_dir = ["./cmd/ticktockbox", "./internal"]
+
+[log]
+level = "debug"
