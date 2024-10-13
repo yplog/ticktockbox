@@ -16,7 +16,15 @@ import (
 	"github.com/yplog/ticktockbox/internal/notifier"
 )
 
-func main() {
+type App struct {
+	cfg      *config.Config
+	db       *database.Database
+	notifier *notifier.Notifier
+	handler  *handler.Handler
+	server   *http.Server
+}
+
+func NewApp() *App {
 	cfg := config.Load()
 	if cfg == nil {
 		log.Fatalf("Failed to load configuration")
@@ -32,29 +40,39 @@ func main() {
 	n := notifier.NewNotifier(cfg.Notifier)
 	h := handler.NewHandler(cfg, db, n)
 
-	http.HandleFunc("/", h.Healthcheck)
-	http.HandleFunc("/create", h.CreateHandler)
-	if cfg.Notifier.UseWebSocket {
-		http.HandleFunc("/ws", h.WebSocketHandler)
-	}
-
-	go func() {
-		ticker := time.NewTicker(time.Duration(cfg.Database.CheckerInterval) * time.Second)
-		for range ticker.C {
-			h.GetExpireRecordsHandler()
-		}
-	}()
-
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	server := &http.Server{
 		Addr:    serverAddr,
 		Handler: http.DefaultServeMux,
 	}
 
-	go func() {
-		log.Printf("Server starting on %s", serverAddr)
+	return &App{
+		cfg:      cfg,
+		db:       db,
+		notifier: n,
+		handler:  h,
+		server:   server,
+	}
+}
 
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+func (app *App) Run() {
+	http.HandleFunc("/", app.handler.Healthcheck)
+	http.HandleFunc("/create", app.handler.CreateHandler)
+	if app.cfg.Notifier.UseWebSocket {
+		http.HandleFunc("/ws", app.handler.WebSocketHandler)
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(app.cfg.Database.CheckerInterval) * time.Second)
+		for range ticker.C {
+			app.handler.GetExpireRecordsHandler()
+		}
+	}()
+
+	go func() {
+		log.Printf("Server starting on %s", app.server.Addr)
+
+		if err := app.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server failed to start: %v", err)
 		}
 	}()
@@ -64,9 +82,14 @@ func main() {
 	<-quit
 	log.Println("Shutting down server...")
 
-	if err := server.Close(); err != nil {
+	if err := app.server.Close(); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
 	log.Println("Server exiting")
+}
+
+func main() {
+	app := NewApp()
+	app.Run()
 }
