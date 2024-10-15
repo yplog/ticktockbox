@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,6 +19,14 @@ type Database struct {
 }
 
 func InitDatabase(path string) (*Database, error) {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
