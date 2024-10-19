@@ -9,9 +9,9 @@ Perfect for applications that require scheduled message delivery, reminders, or 
 * Scheduled notifications
 * Delayed data transfers
 * Timed message queues
-
-## Instalation
-
-## Usage
+* Reminder services
 
 ## License
+
+This project is licensed under the MIT License. For more information, please see the [LICENSE](LICENSE) file.
+
