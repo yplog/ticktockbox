@@ -20,5 +20,4 @@ func WriteErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	if err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
-
 }
