@@ -1,9 +1,9 @@
 # ticktockbox
 
 <div align="center">
-  <img src="https://ucb74ee65c62f925367ee1d00913.previews.dropboxusercontent.com/p/thumb/ACeBRNHA8LdNLqEBJm4nIgvL291oMEsGJ8Ap9JDXJ06SBfB5HDlgFN2D3jLqZlZxVTATfugIa2K5afYaQaLblrmYBphOEjvPDWSdQXgsSVkFIshkEPFX12Q1koQbU9LzziD94lXVQ2mBpAccWVJcEZTiknNPvRigUreGoLNpi5BJJieS_R3oOipj2WkaEjpMhQHSVndwt07c7We2tuo3TvO_UaHwhA3MW_7jacP2HCqNnzp26cDRgw-Am6tXBpSwR87P96PwZGneqSal9_ryAqQ7rk4Ufnp9U7k8SMFuf1Zzs2z7yhbiZ5Y4eIwxKeYlnPgClQ5mHrxa_i9zgNV0NZaX2Pr0htAnYd1lOvjviH2Fx93_7rtmPn6XnWyEmth3e88/p.png?is_prewarmed=true" alt="ticktockbox" width="256"/>
+  <img src="https://www.dropbox.com/scl/fi/s5uan818bg6nf3wxotzul/ticktockbox.png?rlkey=o018h2a11lq3vm60rjjjdg6y4&st=u8y337x0&raw=1" alt="ticktockbox" width="256"/>
 </div>
-
+https://www.dropbox.com/scl/fi/s5uan818bg6nf3wxotzul/ticktockbox.png?rlkey=o018h2a11lq3vm60rjjjdg6y4&st=u8y337x0&dl=0
 
 ticktockbox is a lightweight API service written in Go, designed for time-sensitive data delivery.
 It accepts data with an expiration time and sends it via WebSocket or RabbitMQ once the expiration is reached.
