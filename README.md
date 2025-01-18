@@ -3,7 +3,6 @@
 <div align="center">
   <img src="https://www.dropbox.com/scl/fi/s5uan818bg6nf3wxotzul/ticktockbox.png?rlkey=o018h2a11lq3vm60rjjjdg6y4&st=u8y337x0&raw=1" alt="ticktockbox" width="256"/>
 </div>
-https://www.dropbox.com/scl/fi/s5uan818bg6nf3wxotzul/ticktockbox.png?rlkey=o018h2a11lq3vm60rjjjdg6y4&st=u8y337x0&dl=0
 
 ticktockbox is a lightweight API service written in Go, designed for time-sensitive data delivery.
 It accepts data with an expiration time and sends it via WebSocket or RabbitMQ once the expiration is reached.
