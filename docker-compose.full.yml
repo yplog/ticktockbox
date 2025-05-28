@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  ticktockbox:
+    build: .
+    container_name: ticktockbox_app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - QUESTDB_URL=questdb:8812
+      - RABBITMQ_URL=amqp://ticktock:secure_password@rabbitmq:5672/
+    depends_on:
+      questdb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ticktockbox-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  questdb:
+    image: questdb/questdb:7.3.4
+    container_name: questdb_prod
+    ports:
+      - "9000:9000"
+      - "8812:8812"
+      - "9009:9009"
+    volumes:
+      - questdb_data:/root/.questdb
+    environment:
+      - QDB_CAIRO_COMMIT_LAG=1000
+      - QDB_PG_USER=admin
+      - QDB_PG_PASSWORD=quest
+      - QDB_CAIRO_MAX_UNCOMMITTED_ROWS=500000
+    restart: unless-stopped
+    networks:
+      - ticktockbox-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq_prod
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=ticktock
+      - RABBITMQ_DEFAULT_PASS=secure_password
+      - RABBITMQ_DEFAULT_VHOST=/
+    restart: unless-stopped
+    networks:
+      - ticktockbox-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  questdb_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+
+networks:
+  ticktockbox-network:
+    driver: bridge 
