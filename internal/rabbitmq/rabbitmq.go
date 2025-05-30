@@ -40,6 +40,31 @@ func New(url string) (*RabbitMQ, error) {
 		return nil, err
 	}
 
+	queue, err := ch.QueueDeclare(
+		"expired_messages_queue",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Printf("Warning: Failed to create default queue: %v", err)
+	} else {
+		err = ch.QueueBind(
+			queue.Name,
+			"",
+			"expired_messages",
+			false,
+			nil,
+		)
+		if err != nil {
+			log.Printf("Warning: Failed to bind default queue: %v", err)
+		} else {
+			log.Printf("Default queue 'expired_messages_queue' created and bound to exchange")
+		}
+	}
+
 	return &RabbitMQ{
 		conn:    conn,
 		channel: ch,
