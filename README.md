@@ -26,7 +26,8 @@ cd ticktockbox
 
 2. Start the services:
 ```bash
-docker compose up -d
+# Start dependencies: QuestDB + RabbitMQ
+make deps-up
 ```
 
 This will start:
@@ -48,30 +49,6 @@ curl -X POST http://localhost:3000/api/messages \
 
 # Get all messages
 curl http://localhost:3000/api/messages
-```
-
-### Manual Setup
-
-1. Start QuestDB and RabbitMQ:
-```bash
-# QuestDB
-docker run -p 9000:9000 -p 8812:8812 -p 9009:9009 questdb/questdb:latest
-
-# RabbitMQ
-docker run -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-```
-
-2. Configure environment variables:
-```bash
-cp env.example .env
-# Edit .env file as needed
-```
-
-3. Build and run:
-```bash
-go mod download
-go build -o bin/ticktockbox cmd/server/main.go
-./bin/ticktockbox
 ```
 
 ## Configuration
