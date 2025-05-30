@@ -5,7 +5,7 @@ This document provides detailed information about the TickTockBox REST API endpo
 ## Base URL
 
 ```
-http://localhost:3000
+{url}:{port}
 ```
 
 ## Authentication
@@ -64,7 +64,7 @@ Content-Type: application/json
 
 **Example Request:**
 ```bash
-curl -X POST http://localhost:3000/api/messages \
+curl -X POST {url}:{port}/api/messages \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Reminder: Meeting at 3 PM",
@@ -132,7 +132,7 @@ Retrieves all messages that have not yet been processed (not expired or not yet 
 
 **Example Request:**
 ```bash
-curl http://localhost:3000/api/messages
+curl {url}:{port}/api/messages
 ```
 
 **Success Response (200 OK):**
@@ -186,7 +186,7 @@ Check if the API is running and healthy.
 
 **Example Request:**
 ```bash
-curl http://localhost:3000/health
+curl {url}:{port}/health
 ```
 
 **Success Response (200 OK):**
@@ -203,11 +203,11 @@ curl http://localhost:3000/health
 
 Connect to the WebSocket endpoint to receive real-time notifications when messages expire.
 
-**Endpoint:** `ws://localhost:3000/ws`
+**Endpoint:** `ws://{url}:{port}/ws`
 
 **Example JavaScript:**
 ```javascript
-const ws = new WebSocket('ws://localhost:3000/ws');
+const ws = new WebSocket('ws://{url}:{port}/ws');
 
 ws.onopen = function(event) {
     console.log('Connected to WebSocket');
@@ -275,7 +275,7 @@ Currently, there are no rate limits implemented. This may change in future versi
 
 ```bash
 # 1. Create a message that expires in 5 minutes
-curl -X POST http://localhost:3000/api/messages \
+curl -X POST {url}:{port}/api/messages \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Test notification",
@@ -283,13 +283,13 @@ curl -X POST http://localhost:3000/api/messages \
   }'
 
 # 2. Check all active messages
-curl http://localhost:3000/api/messages
+curl {url}:{port}/api/messages
 
 # 3. Wait for the message to expire (5 minutes)
 # The message will be automatically delivered via WebSocket and RabbitMQ
 
 # 4. Check active messages again (should be empty or not include the expired message)
-curl http://localhost:3000/api/messages
+curl {url}:{port}/api/messages
 ```
 
 ### Batch Message Creation
@@ -298,7 +298,7 @@ curl http://localhost:3000/api/messages
 # Create multiple messages
 for i in {1..5}; do
   expire_time=$(date -u -d "+${i} minutes" +"%Y-%m-%dT%H:%M:%SZ")
-  curl -X POST http://localhost:3000/api/messages \
+  curl -X POST {url}:{port}/api/messages \
     -H "Content-Type: application/json" \
     -d "{
       \"message\": \"Message ${i}\",
@@ -306,90 +306,3 @@ for i in {1..5}; do
     }"
 done
 ```
-
-## Integration Examples
-
-### Node.js Example
-
-```javascript
-const axios = require('axios');
-
-async function createMessage(message, expireAt) {
-  try {
-    const response = await axios.post('http://localhost:3000/api/messages', {
-      message: message,
-      expire_at: expireAt
-    });
-    console.log('Message created:', response.data);
-  } catch (error) {
-    console.error('Error creating message:', error.response.data);
-  }
-}
-
-async function getMessages() {
-  try {
-    const response = await axios.get('http://localhost:3000/api/messages');
-    console.log('Active messages:', response.data.data);
-  } catch (error) {
-    console.error('Error getting messages:', error.response.data);
-  }
-}
-
-// Usage
-const expireTime = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes from now
-createMessage('Hello from Node.js!', expireTime);
-getMessages();
-```
-
-### Python Example
-
-```python
-import requests
-import json
-from datetime import datetime, timedelta
-
-def create_message(message, expire_at):
-    url = 'http://localhost:3000/api/messages'
-    data = {
-        'message': message,
-        'expire_at': expire_at
-    }
-    
-    try:
-        response = requests.post(url, json=data)
-        response.raise_for_status()
-        print('Message created:', response.json())
-    except requests.exceptions.RequestException as e:
-        print('Error creating message:', e)
-
-def get_messages():
-    url = 'http://localhost:3000/api/messages'
-    
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        print('Active messages:', response.json()['data'])
-    except requests.exceptions.RequestException as e:
-        print('Error getting messages:', e)
-
-# Usage
-expire_time = (datetime.utcnow() + timedelta(minutes=5)).isoformat() + 'Z'
-create_message('Hello from Python!', expire_time)
-get_messages()
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Connection Refused**: Make sure the server is running on the correct port
-2. **Invalid Timestamp**: Ensure timestamps are in ISO 8601 format with 'Z' suffix for UTC
-3. **Past Timestamp Error**: Verify that the expiration time is in the future
-4. **WebSocket Connection Failed**: Check if the WebSocket endpoint is accessible
-
-### Debug Tips
-
-1. Check server logs for detailed error messages
-2. Verify QuestDB and RabbitMQ are running
-3. Test with simple curl commands first
-4. Use browser developer tools for WebSocket debugging 

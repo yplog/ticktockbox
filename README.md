@@ -1,38 +1,13 @@
 # TickTockBox
 
-A high-performance time-based message scheduling and notification system built with Go, QuestDB, and RabbitMQ. TickTockBox allows you to schedule messages with expiration times and automatically processes them when they expire, delivering notifications through RabbitMQ message queues and optional real-time WebSocket updates.
+A high-performance time-based message scheduling and notification system built with Go, QuestDB, and RabbitMQ. TickTockBox schedules messages with expiration times and automatically processes them when they expire, delivering notifications through RabbitMQ message queues and optional real-time WebSocket updates.
 
 ## Features
 
 - **Time-based Message Scheduling**: Schedule messages with specific expiration times
 - **Message Queue Integration**: Automatic publishing to RabbitMQ when messages expire
-- **Real-time Notifications** (Optional): WebSocket-based real-time updates when messages expire
-- **High-Performance Storage**: Uses QuestDB for time-series data storage with automatic partitioning
-- **RESTful API**: Simple HTTP API for creating and retrieving messages
-- **Docker Support**: Complete containerization with Docker Compose
-- **Graceful Shutdown**: Proper cleanup and graceful shutdown handling
-- **Health Checks**: Built-in health check endpoints
-- **Automatic Cleanup**: Automatic cleanup of old data partitions
-
-## Architecture
-
-TickTockBox follows a modular architecture with the following components:
-
-- **HTTP Server**: Chi-based REST API server with CORS support
-- **Scheduler**: Background service that checks for expired messages every 10 seconds
-- **Database Layer**: QuestDB integration with time-series optimized storage
-- **Message Queue**: RabbitMQ integration for reliable message delivery
-- **WebSocket Hub** (Optional): Real-time communication hub for broadcasting expired messages
-- **Configuration**: Environment-based configuration management
-
-## Technology Stack
-
-- **Backend**: Go 1.24.3
-- **Database**: QuestDB (time-series database)
-- **Message Queue**: RabbitMQ
-- **WebSocket**: Gorilla WebSocket (optional)
-- **HTTP Router**: Chi v5
-- **Containerization**: Docker & Docker Compose
+- **Real-time Notifications**: WebSocket-based real-time updates when messages expire
+- **High-Performance Storage**: QuestDB time-series database with automatic partitioning
 
 ## Quick Start
 
@@ -51,7 +26,7 @@ cd ticktockbox
 
 2. Start the services:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 This will start:
@@ -112,6 +87,8 @@ QUESTDB_URL=localhost:8812
 QUESTDB_USER=admin
 QUESTDB_PASSWORD=quest
 QUESTDB_NAME=qdb
+QUESTDB_SSL_MODE=disable
+QUESTDB_HTTP_URL=http://localhost:9000
 
 # RabbitMQ Configuration
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
@@ -126,6 +103,8 @@ RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 | `QUESTDB_USER` | `admin` | QuestDB username |
 | `QUESTDB_PASSWORD` | `quest` | QuestDB password |
 | `QUESTDB_NAME` | `qdb` | QuestDB database name |
+| `QUESTDB_SSL_MODE` | `disable` | SSL mode: disable, require, verify-ca, verify-full |
+| `QUESTDB_HTTP_URL` | `http://localhost:9000` | QuestDB HTTP API URL |
 | `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | RabbitMQ AMQP connection URL |
 
 ## API Reference
@@ -140,7 +119,7 @@ Content-Type: application/json
 
 {
   "message": "Your message content",
-  "expire_at": "2025-07-15T10:30:00Z"
+  "expire_at": "2024-01-15T10:30:00Z"
 }
 ```
 
@@ -169,14 +148,14 @@ GET /api/messages
       "message_id": 1705312200000000000,
       "message": "Your message content",
       "expire_at": "2024-01-15T10:30:00Z",
-      "status": "created",
+      "event_type": "created",
       "timestamp": "2024-01-15T10:00:00Z"
     }
   ]
 }
 ```
 
-### WebSocket Connection (Optional)
+### WebSocket Connection
 
 Connect to real-time updates for expired messages:
 
@@ -191,7 +170,6 @@ ws.onmessage = function(event) {
     const data = JSON.parse(event.data);
     if (data.type === 'expired_messages') {
         console.log('Expired messages received:', data.messages);
-        // Handle expired messages in real-time
     }
 };
 
@@ -203,17 +181,19 @@ ws.onclose = function() {
 ## Message Lifecycle
 
 1. **Creation**: Messages are created with a future expiration time
-2. **Storage**: Messages are stored in QuestDB with "created" status
+2. **Storage**: Messages are stored in QuestDB with "created" event type
 3. **Monitoring**: Scheduler checks for expired messages every 10 seconds
 4. **Processing**: When messages expire:
    - Published to RabbitMQ exchange "expired_messages"
-   - Broadcasted via WebSocket to connected clients (if any)
+   - Broadcasted via WebSocket to connected clients
    - Event type updated to "processed" in database
 5. **Cleanup**: Old partitions are automatically cleaned up daily
 
-## Database Schema
+## Event-Driven Architecture
 
-TickTockBox uses QuestDB with the following table structure:
+TickTockBox uses QuestDB's append-newest pattern for event sourcing:
+
+### Database Schema
 
 ```sql
 CREATE TABLE messages (
@@ -221,14 +201,24 @@ CREATE TABLE messages (
     message_id LONG,        -- Unique message identifier
     message STRING,         -- Message content
     expire_at TIMESTAMP,    -- Expiration time
-    status SYMBOL          -- Message status (created/processed)
+    event_type SYMBOL      -- Event type (created/processed)
 ) timestamp(ts) PARTITION BY DAY;
 ```
 
-The table uses QuestDB's time-series optimizations:
-- Partitioned by day for optimal performance
-- Append-only pattern for status tracking
-- Automatic cleanup of old partitions
+### Event Types
+
+- **`created`**: Message was created
+- **`processed`**: Message was processed and expired
+
+### Latest State Query
+
+```sql
+WITH latest_messages AS (
+    SELECT max(ts) AS ts, message_id FROM messages GROUP BY message_id
+)
+SELECT m.* FROM latest_messages lm
+INNER JOIN messages m ON lm.ts = m.ts AND lm.message_id = m.message_id
+```
 
 ## RabbitMQ Integration
 
@@ -244,23 +234,62 @@ TickTockBox publishes expired messages to a RabbitMQ fanout exchange:
 To consume expired messages from RabbitMQ:
 
 ```go
+// Declare a queue and bind to the exchange
 queue, err := channel.QueueDeclare("", false, false, true, false, nil)
 err = channel.QueueBind(queue.Name, "", "expired_messages", false, nil)
 
+// Consume messages
 msgs, err := channel.Consume(queue.Name, "", true, false, false, false, nil)
 ```
 
 ## Development
+
+### Project Structure
+
+```
+ticktockbox/
+├── cmd/
+│   └── server/          # Application entry point
+├── internal/
+│   ├── api/            # HTTP API handlers
+│   ├── config/         # Configuration management
+│   ├── database/       # QuestDB integration
+│   ├── rabbitmq/       # RabbitMQ integration
+│   ├── scheduler/      # Background scheduler
+│   └── websocket/      # WebSocket hub
+├── docker-compose.yml  # Development services
+├── Dockerfile         # Application container
+└── Makefile          # Build automation
+```
 
 ### Available Make Commands
 
 ```bash
 make build          # Build the application
 make run            # Run the application
+make test           # Run tests
 make clean          # Clean build artifacts
 make docker-build   # Build Docker image
 make docker-run     # Run with Docker
 make dev            # Start development environment
+```
+
+### Running Tests
+
+```bash
+make test
+```
+
+### Development with Air (Hot Reload)
+
+For development with automatic reloading:
+
+```bash
+# Install Air
+go install github.com/cosmtrek/air@latest
+
+# Run with hot reload
+air
 ```
 
 ## Monitoring
@@ -270,8 +299,10 @@ make dev            # Start development environment
 TickTockBox includes built-in health checks:
 
 ```bash
-docker ps 
+# Docker health check
+docker ps  # Check container health status
 
+# Manual health check (if implemented)
 curl http://localhost:3000/health
 ```
 
@@ -309,13 +340,52 @@ make docker-build
 docker-compose -f docker-compose.full.yml up -d
 ```
 
+### Environment Considerations
+
+- **Security**: Change default RabbitMQ credentials
+- **SSL/TLS**: Configure proper SSL settings for production
+- **Persistence**: Ensure data volumes are properly configured
+- **Networking**: Configure proper network security
+- **Monitoring**: Set up logging and monitoring solutions
+- **Backup**: Implement backup strategies for QuestDB data
+
+### Scaling
+
+- **Horizontal Scaling**: Multiple TickTockBox instances can run simultaneously
+- **Database**: QuestDB handles high-throughput time-series data efficiently
+- **Message Queue**: RabbitMQ provides reliable message delivery and can be clustered
+- **Load Balancing**: Use a load balancer for multiple application instances
+
 ## Troubleshooting
+
+### Common Issues
+
+1. **Connection Refused Errors**
+   - Ensure QuestDB and RabbitMQ are running
+   - Check port availability
+   - Verify connection URLs in configuration
+
+2. **WebSocket Connection Issues**
+   - Check CORS configuration
+   - Verify WebSocket endpoint accessibility
+   - Check browser console for errors
+
+3. **Message Not Processing**
+   - Verify scheduler is running
+   - Check QuestDB connectivity
+   - Review application logs
+
+4. **SSL/TLS Issues**
+   - Verify SSL mode configuration
+   - Check certificate validity
+   - Ensure proper SSL setup
 
 ### Logs
 
 Application logs provide detailed information about:
 - Scheduler operations
 - Database operations
+- WebSocket connections
 - RabbitMQ publishing
 - Error conditions
 
@@ -337,21 +407,3 @@ For issues and questions:
 - Create an issue on GitHub
 - Check the troubleshooting section
 - Review the logs for error details
-
-### Project Structure
-
-```
-ticktockbox/
-├── cmd/
-│   └── server/          # Application entry point
-├── internal/
-│   ├── api/            # HTTP API handlers
-│   ├── config/         # Configuration management
-│   ├── database/       # QuestDB integration
-│   ├── rabbitmq/       # RabbitMQ integration
-│   ├── scheduler/      # Background scheduler
-│   └── websocket/      # WebSocket hub (optional)
-├── docker-compose.yml  # Development services
-├── Dockerfile         # Application container
-└── Makefile          # Build automation
-```
