@@ -1,0 +1,29 @@
+services:
+  questdb:
+    image: questdb/questdb:latest
+    container_name: questdb
+    ports:
+      - "9000:9000"
+      - "8812:8812"
+      - "9009:9009"
+    volumes:
+      - questdb_data:/root/.questdb
+    environment:
+      - QDB_PG_USER=admin
+      - QDB_PG_PASSWORD=quest
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"  
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+volumes:
+  questdb_data:
+  rabbitmq_data: 

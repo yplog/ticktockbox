@@ -40,6 +40,10 @@ data/
 
 # Build files
 build/
+bin/
 
 # Temporary files
 tmp/
+
+# env files
+.env
