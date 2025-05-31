@@ -1,5 +1,9 @@
 # TickTockBox
 
+<p align="center">
+  <img src="https://ucb74ee65c62f925367ee1d00913.previews.dropboxusercontent.com/p/thumb/ACqbJcsoxLJDLIa442I7_pbtaVNKAVYQkIwS4qdUa0NdP2CwkC7ruM0HilUUokhvvuPM_oyt3s5CmrVlo2vziLvocxs7gQXSeQ17E8zIjsx_pmdUYf_1gI1JTZWrsMk3lkogo-3QJvkoJ4FsACMKbIx80qqZIlIBdzjYe3bS1y8bJj1uePss2kmXHmJ_uKYaf0jZu0B_rWPV0f6NudEFmnvISegIwSVysf7VNTdcCqERT9eXzj7fR_m6PAIjMHO3HEGrPVpUYkrDMtQfhC1gEgyWsfnBZUz4UC9JlXgzn_tijOJVx7-KHA8D5lRBjomnAYbbqVa4W7WqrNFyasHm-jg550uMkIeRNj04JJV6pwHyN4J4nhd1RA7H-_7yavm46_E/p.png?is_prewarmed=true" width="256" height="256" alt="TickTockBox">
+</p>
+
 A high-performance time-based message scheduling and notification system built with Go, QuestDB, and RabbitMQ. TickTockBox schedules messages with expiration times and automatically processes them when they expire, delivering notifications through RabbitMQ message queues and optional real-time WebSocket updates.
 
 ## Features
