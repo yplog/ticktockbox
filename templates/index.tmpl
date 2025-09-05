@@ -1,0 +1,29 @@
+{{define "index"}}{{template "layout" .}}{{end}}
+
+{{define "content"}}
+<h2>Upcoming (pending / enqueued)</h2>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Title</th><th>TZ</th><th>Run(Local)</th><th>Due(Local)</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody>
+  {{range .Rows}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>{{.Title}}</td>
+      <td>{{.TZ}}</td>
+      <td>{{.RunAtLocal}}</td>
+      <td>{{.DueAtLocal}}</td>
+      <td>{{.Status}}</td>
+      <td>
+        {{if eq .Status "pending"}}
+          <form method="post" action="/jobs/{{.ID}}/cancel"><button>Cancel</button></form>
+        {{end}}
+      </td>
+    </tr>
+  {{else}}
+    <tr><td colspan="7">No items.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

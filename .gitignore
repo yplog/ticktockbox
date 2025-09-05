@@ -47,3 +47,8 @@ tmp/
 
 # env files
 .env
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal

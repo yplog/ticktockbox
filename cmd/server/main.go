@@ -1,86 +1,75 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
-	"github.com/yplog/ticktockbox/internal/api"
-	"github.com/yplog/ticktockbox/internal/config"
-	"github.com/yplog/ticktockbox/internal/database"
-	"github.com/yplog/ticktockbox/internal/rabbitmq"
-	"github.com/yplog/ticktockbox/internal/scheduler"
-	"github.com/yplog/ticktockbox/internal/websocket"
+	"github.com/go-playground/validator/v10"
+
+	"github.com/yplog/ticktockbox/internal/db"
+	httpx "github.com/yplog/ticktockbox/internal/http"
+	"github.com/yplog/ticktockbox/internal/jobs"
+	"github.com/yplog/ticktockbox/internal/rmq"
+	"github.com/yplog/ticktockbox/internal/twheel"
+	"github.com/yplog/ticktockbox/public"
+	"github.com/yplog/ticktockbox/templates"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+	// ENV
+	addr := getenv("ADDR", ":8080")
+	dbPath := getenv("SQLITE_PATH", "app.db")
+	rmqURL := getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+	queue := getenv("RABBITMQ_QUEUE", "reminders.due")
+
+	// DB
+	sqlDB, err := db.Open(dbPath)
+	must(err)
+	ctx := context.Background()
+	must(db.Migrate(ctx, sqlDB))
+	repo := &jobs.Repo{DB: sqlDB}
+
+	// RabbitMQ
+	pub, err := rmq.NewPublisher(rmqURL, queue)
+	must(err)
+	defer pub.Close()
+
+	// Wheel
+	wheel := twheel.New(1*time.Second, 512)
+	wheel.Start()
+	defer wheel.Stop(context.Background())
+
+	// Scheduler
+	sched := jobs.NewScheduler(repo, pub, wheel)
+	must(sched.Warmup(ctx))
+
+	// HTTP
+	admin := &httpx.AdminHandlers{
+		Repo:        repo,
+		Scheduler:   sched,
+		TemplatesFS: templates.TemplateFiles,
+		Assets:      public.PublicFiles,
+		Validate:    validator.New(validator.WithRequiredStructEnabled()),
+	}
+	srv := httpx.NewServer(admin)
+
+	log.Printf("listening on %s", addr)
+	must(http.ListenAndServe(addr, srv.R))
+}
+
+func getenv(k, d string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
 	}
 
-	cfg := config.Load()
+	return d
+}
 
-	db, err := database.NewQuestDB(cfg)
+func must(err error) {
 	if err != nil {
-		log.Fatal("Failed to connect to QuestDB:", err)
+		log.Fatal(err)
 	}
-	defer db.Close()
-
-	rmq, err := rabbitmq.New(cfg.RabbitMQURL)
-	if err != nil {
-		log.Fatal("Failed to connect to RabbitMQ:", err)
-	}
-	defer rmq.Close()
-
-	wsHub := websocket.NewHub()
-	go wsHub.Run()
-
-	sched := scheduler.New(db, rmq, wsHub)
-	go sched.Start(10 * time.Second)
-
-	r := chi.NewRouter()
-
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
-
-	apiHandler := api.NewHandler(db, rmq)
-	r.Route("/api", func(r chi.Router) {
-		r.Post("/messages", apiHandler.CreateMessage)
-		r.Get("/messages", apiHandler.GetMessages)
-	})
-
-	r.Get("/ws", wsHub.HandleWebSocket)
-
-	log.Printf("Server starting on port %s", cfg.Port)
-	server := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
-	}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Server failed to start:", err)
-		}
-	}()
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	log.Println("Server shutting down...")
 }
