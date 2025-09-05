@@ -28,15 +28,18 @@ func NewScheduler(repo *Repo, pub *rmq.Publisher, wh *twheel.Wheel) *Scheduler {
 }
 
 func (s *Scheduler) Warmup(ctx context.Context) error {
-	since := time.Now().UTC().Add(-10 * time.Minute)
+	since := time.Now().UTC().Add(-24 * time.Hour)
+
 	pending, err := s.Repo.LoadPendingSince(ctx, since)
 	if err != nil {
 		return err
 	}
+
 	for _, j := range pending {
 		j := j
 		s.scheduleJob(j)
 	}
+
 	return nil
 }
 
@@ -65,4 +68,5 @@ func (s *Scheduler) scheduleJob(j Job) {
 	})
 }
 
+// TODO
 func keyFor(id int64) string { return "job-" + time.Now().UTC().Format("20060102150405") }

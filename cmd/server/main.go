@@ -20,7 +20,7 @@ import (
 
 func main() {
 	// ENV
-	addr := getenv("ADDR", ":8080")
+	addr := getenv("ADDR", ":3000")
 	dbPath := getenv("SQLITE_PATH", "app.db")
 	rmqURL := getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 	queue := getenv("RABBITMQ_QUEUE", "reminders.due")
