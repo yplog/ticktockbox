@@ -31,7 +31,29 @@ type createJobForm struct {
 
 func (a *AdminHandlers) Index(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	items, err := a.Repo.GetUpcoming(ctx, 50)
+
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 {
+		limit = 25
+	}
+
+	filter := jobs.JobFilter{
+		Status: status,
+		Page:   page,
+		Limit:  limit,
+	}
+
+	jobPage, err := a.Repo.GetJobsPaginated(ctx, filter)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -44,18 +66,42 @@ func (a *AdminHandlers) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rows []row
-
-	for _, j := range items {
+	for _, j := range jobPage.Jobs {
 		loc, _ := time.LoadLocation(j.TZ)
 		rows = append(rows, row{
 			Job:        j,
-			RunAtLocal: j.RunAtUTC.In(loc).Format(time.RFC3339),
-			DueAtLocal: j.DueAtUTC.In(loc).Format(time.RFC3339),
+			RunAtLocal: j.RunAtUTC.In(loc).Format("2006-01-02 15:04:05"),
+			DueAtLocal: j.DueAtUTC.In(loc).Format("2006-01-02 15:04:05"),
 		})
 	}
 
-	tmpl := template.Must(template.ParseFS(a.TemplatesFS, "layout.tmpl", "index.tmpl"))
-	_ = tmpl.ExecuteTemplate(w, "index", map[string]any{"Rows": rows})
+	data := map[string]any{
+		"Rows":       rows,
+		"Page":       jobPage,
+		"Filter":     filter,
+		"StatusList": []string{"all", "pending", "enqueued", "completed", "cancelled"},
+	}
+
+	tmpl := template.New("index").Funcs(template.FuncMap{
+		"add": func(a, b int) int { return a + b },
+		"sub": func(a, b int) int { return a - b },
+		"title": func(s string) string {
+			if len(s) == 0 {
+				return s
+			}
+			return string(s[0]-32) + s[1:]
+		},
+		"seq": func(start, end int) []int {
+			var result []int
+			for i := start; i <= end; i++ {
+				result = append(result, i)
+			}
+			return result
+		},
+	})
+
+	tmpl = template.Must(tmpl.ParseFS(a.TemplatesFS, "layout.tmpl", "index.tmpl"))
+	_ = tmpl.ExecuteTemplate(w, "index", data)
 }
 
 func (a *AdminHandlers) NewForm(w http.ResponseWriter, r *http.Request) {

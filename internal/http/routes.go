@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"io/fs"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -18,7 +19,12 @@ func NewServer(admin *AdminHandlers) *Server {
 	r.Get("/new", admin.NewForm)
 	r.Post("/jobs", admin.CreateJob)
 	r.Post("/jobs/{id}/cancel", admin.CancelJob)
-	// statik
-	r.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(admin.Assets))))
+
+	staticFS, err := fs.Sub(admin.Assets, ".")
+	if err != nil {
+		panic(err)
+	}
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+
 	return &Server{R: r}
 }
