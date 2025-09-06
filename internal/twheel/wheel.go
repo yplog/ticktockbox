@@ -158,11 +158,8 @@ func (w *Wheel) loop() {
 func (w *Wheel) place(a addReq) {
 	now := time.Now().UTC()
 	delay := a.deadline.Sub(now)
-	ticksLater := ceilDiv(delay, w.tick)
 
-	if ticksLater < 0 {
-		ticksLater = 0
-	}
+	ticksLater := max(ceilDiv(delay, w.tick), 0)
 
 	slot := (w.cur + (ticksLater % w.slots)) % w.slots
 	rounds := ticksLater / w.slots
@@ -176,7 +173,6 @@ func (w *Wheel) place(a addReq) {
 func (w *Wheel) doCancel(id uint64) bool {
 	if v, ok := w.timers.Load(id); ok {
 		t := v.(*timer)
-
 		if t.bucket != nil {
 			_ = t.bucket.removeByID(id)
 		}
@@ -192,17 +188,20 @@ func (w *Wheel) doCancel(id uint64) bool {
 func (w *Wheel) AfterFunc(d time.Duration, f Task) uint64 {
 	id := w.idGen.Add(1)
 	w.addCh <- addReq{id: id, deadline: time.Now().UTC().Add(d), task: f}
+
 	return id
 }
 
 func (w *Wheel) At(deadline time.Time, f Task) uint64 {
 	id := w.idGen.Add(1)
 	w.addCh <- addReq{id: id, deadline: deadline.UTC(), task: f}
+
 	return id
 }
 
 func (w *Wheel) Cancel(id uint64) bool {
 	res := make(chan bool, 1)
 	w.cancelCh <- cancelReq{id: id, result: res}
+
 	return <-res
 }

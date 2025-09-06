@@ -32,7 +32,6 @@ func (b *bucket) removeByID(id uint64) *timer {
 	defer b.mu.Unlock()
 
 	el, ok := b.index[id]
-
 	if !ok {
 		return nil
 	}
@@ -63,12 +62,12 @@ func (b *bucket) drainDue() (due []*timer, dec []*timer) {
 			dec = append(dec, t)
 		} else {
 			delete(b.index, t.id)
-
 			b.lst.Remove(e)
 			t.bucket, t.elem = nil, nil
 			due = append(due, t)
 		}
 		e = n
 	}
+
 	return
 }
