@@ -1,7 +1,7 @@
 # TickTockBox
 
 <p align="center">
-  <img src="https://ucb74ee65c62f925367ee1d00913.previews.dropboxusercontent.com/p/thumb/ACqbJcsoxLJDLIa442I7_pbtaVNKAVYQkIwS4qdUa0NdP2CwkC7ruM0HilUUokhvvuPM_oyt3s5CmrVlo2vziLvocxs7gQXSeQ17E8zIjsx_pmdUYf_1gI1JTZWrsMk3lkogo-3QJvkoJ4FsACMKbIx80qqZIlIBdzjYe3bS1y8bJj1uePss2kmXHmJ_uKYaf0jZu0B_rWPV0f6NudEFmnvISegIwSVysf7VNTdcCqERT9eXzj7fR_m6PAIjMHO3HEGrPVpUYkrDMtQfhC1gEgyWsfnBZUz4UC9JlXgzn_tijOJVx7-KHA8D5lRBjomnAYbbqVa4W7WqrNFyasHm-jg550uMkIeRNj04JJV6pwHyN4J4nhd1RA7H-_7yavm46_E/p.png?is_prewarmed=true" width="256" height="256" alt="TickTockBox">
+  <img src="https://ucb74ee65c62f925367ee1d00913.previews.dropboxusercontent.com/p/thumb/ACyrGun-GAqzVKnnec-ovOrGA6TXhT8diwiG81WMh3WhXjRPQYR7-wFSJSpfyBl2Vh5EmP3Vl39GHFhrAehMW2TfRM4RsUK9Yp2W-IYsoBx8Uxf7JNSpjTqiKi98zu7u1d4eoLqGhvSeA2Y_nW0FUtrWojiKNtlBwtlCeW4r784CMTZiWh50Ea928GMIX_UPi_2jyemslP5Nl3HLDjx8M8AZl289d8iLfd9Ln38a4bTKbIl34uOwhZa-CcLsXMnTLUKQ9v-WLHPHGx6Q12frn9ywSVm9XFcoKq-t173c7DjDCt_OMt14Bw7dTa0pwoXMOWnrWWIqEUpQKbiy3oIRSu95GmpYd9JxexW_3lf9lgp9hT3X9cqDXj_U4HkEiwt6lP4/p.png?is_prewarmed=true" width="256" height="256" alt="TickTockBox">
 </p>
 
 A high-performance reminder and job scheduling system built with Go. TickTockBox uses a custom timing wheel algorithm to efficiently manage thousands of scheduled tasks, delivering notifications through RabbitMQ when reminders are due.
