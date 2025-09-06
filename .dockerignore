@@ -1,0 +1,26 @@
+# VCS
+.git
+.gitignore
+
+# Build artifacts
+bin/
+coverage.out
+coverage.html
+cpu.prof
+mem.prof
+
+# Local env and databases
+.env
+*.db
+*.db-*
+*.db.*
+
+# Node/public caches if any
+node_modules/
+.cache/
+
+# Editor/OS files
+.DS_Store
+.idea
+.vscode
+
