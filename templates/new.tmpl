@@ -1,0 +1,36 @@
+{{define "new"}}{{template "layout" .}}{{end}}
+
+{{define "content"}}
+<h2>New Job</h2>
+<form method="post" action="/jobs">
+  <label>Title <input name="title" required></label><br/>
+  <label>Time zone 
+    <select name="tz" required>
+      <option value="Europe/Istanbul" selected>Europe/Istanbul (Turkey)</option>
+      <option value="UTC">UTC</option>
+      <option value="America/New_York">America/New_York (Eastern Time)</option>
+      <option value="America/Chicago">America/Chicago (Central Time)</option>
+      <option value="America/Denver">America/Denver (Mountain Time)</option>
+      <option value="America/Los_Angeles">America/Los_Angeles (Pacific Time)</option>
+      <option value="America/Toronto">America/Toronto</option>
+      <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+      <option value="Europe/London">Europe/London</option>
+      <option value="Europe/Paris">Europe/Paris</option>
+      <option value="Europe/Berlin">Europe/Berlin</option>
+      <option value="Europe/Rome">Europe/Rome</option>
+      <option value="Europe/Moscow">Europe/Moscow</option>
+      <option value="Asia/Tokyo">Asia/Tokyo</option>
+      <option value="Asia/Shanghai">Asia/Shanghai</option>
+      <option value="Asia/Seoul">Asia/Seoul</option>
+      <option value="Asia/Kolkata">Asia/Kolkata</option>
+      <option value="Asia/Dubai">Asia/Dubai</option>
+      <option value="Australia/Sydney">Australia/Sydney</option>
+      <option value="Pacific/Auckland">Pacific/Auckland</option>
+    </select>
+  </label><br/>
+  <label>Run at (local) <input type="datetime-local" name="run_at" required step="1"></label><br/>
+  <label>Remind before (min) <input type="number" name="remind_before_minutes" value="5" min="0"></label><br/>
+  <button type="submit">Create</button>
+</form>
+<p>Note: Times are interpreted according to the entered TZ; stored in the DB as UTC.</p>
+{{end}}

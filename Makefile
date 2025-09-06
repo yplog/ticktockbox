@@ -1,198 +1,202 @@
-APP_NAME = ticktockbox
-BUILD_DIR = bin
-MAIN_PATH = cmd/server/main.go
-DOCKER_IMAGE = ticktockbox:latest
+# TickTockBox Makefile
 
-GOCMD = go
-GOBUILD = $(GOCMD) build
-GOCLEAN = $(GOCMD) clean
-GOTEST = $(GOCMD) test
-GOMOD = $(GOCMD) mod
+# Variables
+BINARY_NAME=ticktockbox
+SERVER_BINARY=./bin/$(BINARY_NAME)-server
+SOURCE_DIR=./cmd
+BUILD_DIR=./bin
+DOCKER_IMAGE=ticktockbox
+DOCKER_TAG=latest
 
-LDFLAGS = -ldflags "-X main.version=$(shell git describe --tags --always --dirty) -s -w"
-BUILD_FLAGS = -v $(LDFLAGS)
+# Go parameters
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOMOD=$(GOCMD) mod
+GOFMT=$(GOCMD) fmt
 
-.PHONY: all build clean test deps run docker-build docker-run help
+# Environment
+ENV_FILE=.env
+DB_PATH=app.db
 
-all: clean deps test build
+## Development
+.PHONY: dev
+dev: ## Start development server
+	$(GOCMD) run $(SOURCE_DIR)/server/main.go
 
-build:
-	@echo "Building $(APP_NAME)..."
+.PHONY: vet
+vet: ## Run go vet
+	$(GOCMD) vet ./...
+
+## Build
+.PHONY: build
+build: clean ## Build server and seed binaries
+	@echo "Building TickTockBox..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
-	@echo "Build completed: $(BUILD_DIR)/$(APP_NAME)"
+	$(GOBUILD) -o $(SERVER_BINARY) $(SOURCE_DIR)/server/main.go
+	@echo "Build completed: $(SERVER_BINARY)"
 
-build-all:
-	@echo "Building for multiple platforms..."
+.PHONY: build-server
+build-server: ## Build only server binary
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PATH)
-	GOOS=linux GOARCH=arm64 $(GOBUILD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-arm64 $(MAIN_PATH)
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(APP_NAME)-darwin-amd64 $(MAIN_PATH)
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64 $(MAIN_PATH)
-	GOOS=windows GOARCH=amd64 $(GOBUILD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(APP_NAME)-windows-amd64.exe $(MAIN_PATH)
-	@echo "Multi-platform build completed"
+	$(GOBUILD) -o $(SERVER_BINARY) $(SOURCE_DIR)/server/main.go
 
-clean:
-	@echo "Cleaning..."
-	$(GOCLEAN)
-	@rm -rf $(BUILD_DIR) coverage.out coverage.html release/
-	@echo "Clean completed"
+.PHONY: build-linux
+build-linux: ## Build for Linux
+	@mkdir -p $(BUILD_DIR)
+	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-server-linux $(SOURCE_DIR)/server/main.go
+	
+.PHONY: build-windows
+build-windows: ## Build for Windows
+	@mkdir -p $(BUILD_DIR)
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-server.exe $(SOURCE_DIR)/server/main.go
+	
+.PHONY: build-all
+build-all: build build-linux build-windows ## Build for all platforms
 
-deps:
-	@echo "Downloading dependencies..."
-	$(GOMOD) download
-	$(GOMOD) tidy
-	@echo "Dependencies updated"
+## Run
+.PHONY: run
+run: build-server ## Build and run server
+	$(SERVER_BINARY)
 
-run: build
-	@echo "Starting $(APP_NAME)..."
-	./$(BUILD_DIR)/$(APP_NAME)
+.PHONY: run-server
+run-server: build-server ## Build and run server
+	$(SERVER_BINARY)
 
-dev:
-	@echo "Starting $(APP_NAME) in development mode..."
-	$(GOCMD) run $(MAIN_PATH)
+.PHONY: run-seed
+run-seed: ## Run database seeder directly
+	$(GOCMD) run $(SOURCE_DIR)/seed/main.go
 
-deps-up:
-	@echo "Starting dependencies..."
-	docker compose up -d
-	@echo "Dependencies started"
+## Database
+.PHONY: seed
+seed: ## Seed database with test data (1000 jobs)
+	$(GOCMD) run $(SOURCE_DIR)/seed/main.go
 
-deps-down:
-	@echo "Stopping dependencies..."
-	docker compose down
-	@echo "Dependencies stopped"
+.PHONY: seed-small
+seed-small: ## Seed database with small test data (100 jobs)
+	SEED_COUNT=100 $(GOCMD) run $(SOURCE_DIR)/seed/main.go
 
-deps-restart: deps-down deps-up
+.PHONY: seed-large
+seed-large: ## Seed database with large test data (100000 jobs)
+	SEED_COUNT=100000 $(GOCMD) run $(SOURCE_DIR)/seed/main.go
 
-deps-logs:
-	docker compose logs -f
+.PHONY: seed-keep
+seed-keep: ## Seed database without clearing existing data
+	CLEAR_EXISTING=false SEED_COUNT=1000 $(GOCMD) run $(SOURCE_DIR)/seed/main.go
 
-docker-build:
-	@echo "Building Docker image..."
-	docker build -t $(DOCKER_IMAGE) .
-	@echo "Docker image built: $(DOCKER_IMAGE)"
-
-docker-run:
-	@echo "Starting full stack with Docker Compose..."
-	docker compose -f docker-compose.full.yml up -d
-	@echo "Full stack started"
-
-docker-stop:
-	@echo "Stopping Docker Compose stack..."
-	docker compose -f docker-compose.full.yml down
-	@echo "Docker stack stopped"
-
-docker-logs:
-	docker compose -f docker-compose.full.yml logs -f
-
-lint:
-	@echo "Linting code..."
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run; \
-		echo "Linting completed"; \
-	else \
-		echo "golangci-lint not installed. Run 'make install-tools' first"; \
-	fi
-
-install-tools:
-	@echo "Installing development tools..."
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin; \
-	fi
-	@if ! command -v air >/dev/null 2>&1; then \
-		echo "Installing air..."; \
-		$(GOCMD) install github.com/cosmtrek/air@latest; \
-	fi
-	@echo "Development tools installed"
-
-watch:
-	@echo "Starting hot reload..."
-	@if command -v air >/dev/null 2>&1; then \
-		air; \
-	else \
-		echo "air not installed. Run 'make install-tools' first"; \
-	fi
-
-db-reset:
+.PHONY: db-reset
+db-reset: ## Remove database file and recreate
 	@echo "Resetting database..."
-	docker compose restart questdb
-	@sleep 5
+	@rm -f $(DB_PATH) $(DB_PATH)-shm $(DB_PATH)-wal
 	@echo "Database reset completed"
 
-health:
-	@echo "Checking application health..."
-	@curl -f http://localhost:3000/api/messages >/dev/null 2>&1 && echo "Application is healthy" || echo "Application not responding"
+.PHONY: db-backup
+db-backup: ## Backup database
+	@echo "Backing up database..."
+	@cp $(DB_PATH) $(DB_PATH).backup.$(shell date +%Y%m%d_%H%M%S)
+	@echo "Database backup completed"
 
-status:
-	@echo "=== TickTockBox Status ==="
-	@echo "Application:"
-	@curl -s http://localhost:3000/api/messages >/dev/null 2>&1 && echo "Running" || echo "Not running"
-	@echo "QuestDB:"
-	@curl -s http://localhost:9000 >/dev/null 2>&1 && echo "Running" || echo "Not running"
-	@echo "RabbitMQ:"
-	@curl -s http://localhost:15672 >/dev/null 2>&1 && echo "Running" || echo "Not running"
+## Dependencies
+.PHONY: deps
+deps: ## Download and verify dependencies
+	$(GOMOD) download
+	$(GOMOD) verify
 
-test-message:
-	@echo "Creating test message..."
-	@curl -X POST http://localhost:3000/api/messages \
-		-H "Content-Type: application/json" \
-		-d '{"message": "Test message from Makefile", "expire_at": "'$(shell date -u -d '+1 minute' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v+1M +%Y-%m-%dT%H:%M:%SZ)'"}' \
-		2>/dev/null | jq . 2>/dev/null || echo "Message sent (jq not available for formatting)"
+.PHONY: deps-update
+deps-update: ## Update dependencies
+	$(GOMOD) get -u ./...
+	$(GOMOD) tidy
 
-get-messages:
-	@echo "Getting all messages..."
-	@curl -s http://localhost:3000/api/messages | jq . 2>/dev/null || curl -s http://localhost:3000/api/messages
+.PHONY: deps-tidy
+deps-tidy: ## Clean up dependencies
+	$(GOMOD) tidy
 
-test-websocket:
-	@echo "Testing WebSocket connection..."
-	@echo "Connect to: ws://localhost:3000/ws"
-	@echo "Use a WebSocket client or browser console to test real-time updates"
+## Docker
+.PHONY: docker-build
+docker-build: ## Build Docker image
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
-release: clean build-all
-	@echo "Creating release archive..."
-	@mkdir -p release
-	@tar -czf release/$(APP_NAME)-$(shell git describe --tags --always).tar.gz -C $(BUILD_DIR) .
-	@echo "Release archive created: release/$(APP_NAME)-$(shell git describe --tags --always).tar.gz"
+.PHONY: docker-run
+docker-run: ## Run Docker container
+	docker run -p 8080:8080 --name $(BINARY_NAME) $(DOCKER_IMAGE):$(DOCKER_TAG)
 
-help:
-	@echo "TickTockBox Makefile Commands:"
-	@echo ""
-	@echo "Build Commands:"
-	@echo "  build          Build the application"
-	@echo "  build-all      Build for multiple platforms (Linux, macOS, Windows)"
-	@echo "  clean          Clean build artifacts and temporary files"
-	@echo ""
-	@echo "Development Commands:"
-	@echo "  dev            Run in development mode (no build required)"
-	@echo "  run            Build and run the application"
-	@echo "  watch          Start hot reload for development (requires air)"
-	@echo "  fmt            Format Go code"
-	@echo "  lint           Lint code (requires golangci-lint)"
-	@echo "  test           Run tests"
-	@echo "  test-coverage  Run tests with coverage report"
-	@echo ""
-	@echo "Dependencies:"
-	@echo "  deps           Download and tidy Go dependencies"
-	@echo "  deps-up        Start QuestDB and RabbitMQ with Docker"
-	@echo "  deps-down      Stop dependency containers"
-	@echo "  deps-restart   Restart dependency containers"
-	@echo "  deps-logs      View dependency container logs"
-	@echo ""
-	@echo "Docker Commands:"
-	@echo "  docker-build   Build Docker image"
-	@echo "  docker-run     Run full stack with Docker Compose"
-	@echo "  docker-stop    Stop Docker Compose stack"
-	@echo "  docker-logs    View Docker container logs"
-	@echo ""
-	@echo "Database Commands:"
-	@echo "  db-reset       Reset QuestDB database"
-	@echo ""
-	@echo "Testing Commands:"
-	@echo "  health         Check application health"
-	@echo "  status         Show all services status"
-	@echo "  test-message   Create a test message via API"
-	@echo "  get-messages   Get all messages via API"
-	@echo "  test-websocket Show WebSocket connection info"
-	@echo ""
-	@echo "  help           Show this help message" 
+.PHONY: docker-stop
+docker-stop: ## Stop Docker container
+	docker stop $(BINARY_NAME) || true
+	docker rm $(BINARY_NAME) || true
+
+.PHONY: docker-up
+docker-up: ## Start all services with docker-compose
+	docker compose up -d
+
+.PHONY: docker-down
+docker-down: ## Stop all services with docker-compose
+	docker compose down
+
+.PHONY: docker-logs
+docker-logs: ## Show docker-compose logs
+	docker compose logs -f
+
+.PHONY: docker-rabbitmq
+docker-rabbitmq: ## Start RabbitMQ with docker-compose
+	docker compose up -d rabbitmq
+
+.PHONY: docker-rabbitmq-stop
+docker-rabbitmq-stop: ## Stop RabbitMQ with docker-compose
+	docker compose stop rabbitmq
+
+.PHONY: docker-rabbitmq-logs
+docker-rabbitmq-logs: ## Show RabbitMQ logs
+	docker compose logs -f rabbitmq
+
+.PHONY: docker-clean
+docker-clean: ## Clean docker containers and volumes
+	docker compose down -v
+	docker system prune -f
+
+## Environment
+.PHONY: env-setup
+env-setup: ## Setup environment file
+	@if [ ! -f $(ENV_FILE) ]; then \
+		echo "Creating .env file from env.example..."; \
+		cp env.example $(ENV_FILE); \
+		echo "Please edit $(ENV_FILE) with your configuration"; \
+	else \
+		echo "$(ENV_FILE) already exists"; \
+	fi
+
+.PHONY: env-check
+env-check: ## Check environment configuration
+	@echo "Environment configuration:"
+	@echo "ADDR: $${ADDR:-:8080}"
+	@echo "SQLITE_PATH: $${SQLITE_PATH:-app.db}"
+	@echo "RABBITMQ_URL: $${RABBITMQ_URL:-amqp://guest:guest@localhost:5672/}"
+	@echo "RABBITMQ_QUEUE: $${RABBITMQ_QUEUE:-reminders.due}"
+
+## Cleanup
+.PHONY: clean
+clean: ## Clean build artifacts
+	$(GOCLEAN)
+	@rm -rf $(BUILD_DIR)
+	@rm -f coverage.out coverage.html
+	@rm -f cpu.prof mem.prof
+	@echo "Cleaned build artifacts"
+
+.PHONY: clean-all
+clean-all: clean ## Clean everything including database
+	@rm -f $(DB_PATH) $(DB_PATH)-shm $(DB_PATH)-wal
+	@rm -f $(DB_PATH).backup.*
+	@echo "Cleaned all artifacts and database"
+
+## Info
+.PHONY: version
+version: ## Show version info
+	@echo "TickTockBox"
+	@echo "Go version: $$($(GOCMD) version)"
+	@echo "Git commit: $$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+	@echo "Build time: $$(date)"
+
+# Default target when no arguments
+.DEFAULT_GOAL := help
