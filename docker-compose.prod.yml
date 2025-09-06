@@ -1,0 +1,27 @@
+services:
+  app:
+    image: ghcr.io/yplog/ticktockbox:latest
+    pull_policy: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ADDR=:3000
+      - SQLITE_PATH=/data/app.db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_QUEUE=reminders.due
+    ports:
+      - "3000:3000"
+    volumes:
+      - app_data:/data
+    restart: unless-stopped
+
+  rabbitmq:
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  app_data:

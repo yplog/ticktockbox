@@ -5,6 +5,10 @@ FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
 
+# Allow multi-arch builds via buildx
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # Enable module mode and cache deps early
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -15,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags "-s -w" -o /out/ticktockbox ./cmd/server
 
 
@@ -43,4 +47,3 @@ VOLUME ["/data"]
 USER appuser
 
 ENTRYPOINT ["/app/ticktockbox"]
-
