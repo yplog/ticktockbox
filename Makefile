@@ -46,12 +46,12 @@ build-server: ## Build only server binary
 .PHONY: build-linux
 build-linux: ## Build for Linux
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-server-linux $(SOURCE_DIR)/server/main.go
+	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-linux $(SOURCE_DIR)/server/main.go
 	
 .PHONY: build-windows
 build-windows: ## Build for Windows
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-server.exe $(SOURCE_DIR)/server/main.go
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME).exe $(SOURCE_DIR)/server/main.go
 	
 .PHONY: build-all
 build-all: build build-linux build-windows ## Build for all platforms
