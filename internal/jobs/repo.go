@@ -56,11 +56,6 @@ func (r *Repo) MarkEnqueued(ctx context.Context, id int64) error {
 	return err
 }
 
-func (r *Repo) MarkDone(ctx context.Context, id int64) error {
-	_, err := r.DB.ExecContext(ctx, `UPDATE jobs SET status='done' WHERE id=?`, id)
-
-	return err
-}
 
 func (r *Repo) Cancel(ctx context.Context, id int64) error {
 	_, err := r.DB.ExecContext(ctx, `UPDATE jobs SET status='cancelled' WHERE id=?`, id)

@@ -13,12 +13,14 @@ type Server struct {
 }
 
 func NewServer(admin *AdminHandlers) *Server {
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Get("/", admin.Index)
-	r.Get("/new", admin.NewForm)
-	r.Post("/jobs", admin.CreateJob)
-	r.Post("/jobs/{id}/cancel", admin.CancelJob)
+    r := chi.NewRouter()
+    r.Use(middleware.Logger)
+    r.Get("/", admin.Index)
+    r.Get("/new", admin.NewForm)
+    r.Post("/jobs", admin.CreateJob)
+    r.Post("/jobs/{id}/cancel", admin.CancelJob)
+    // Maintenance: reschedule all pending jobs (past 24h)
+    r.Post("/maintenance/reschedule", admin.ReschedulePending)
 
 	staticFS, err := fs.Sub(admin.Assets, ".")
 	if err != nil {

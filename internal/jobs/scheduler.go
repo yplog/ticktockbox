@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -48,9 +49,10 @@ func (s *Scheduler) ScheduleNew(j Job) {
 }
 
 func (s *Scheduler) scheduleJob(j Job) {
+	now := time.Now().UTC()
 	deadline := j.DueAtUTC
-	if deadline.Before(time.Now().UTC()) {
-		deadline = time.Now().UTC()
+	if deadline.Before(now) {
+		deadline = now
 	}
 
 	s.Wh.At(deadline, func() {
@@ -68,5 +70,6 @@ func (s *Scheduler) scheduleJob(j Job) {
 	})
 }
 
-// TODO
-func keyFor(id int64) string { return "job-" + time.Now().UTC().Format("20060102150405") }
+func keyFor(id int64) string {
+	return "job-" + fmt.Sprintf("%d", id) + "-" + time.Now().UTC().Format("20060102150405")
+}

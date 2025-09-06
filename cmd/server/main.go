@@ -16,6 +16,9 @@ import (
 	"github.com/yplog/ticktockbox/internal/twheel"
 	"github.com/yplog/ticktockbox/public"
 	"github.com/yplog/ticktockbox/templates"
+
+	// Embed IANA timezone database to support all time zones
+	_ "time/tzdata"
 )
 
 func main() {

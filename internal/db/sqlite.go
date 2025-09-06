@@ -22,7 +22,7 @@ func Migrate(ctx context.Context, sqlDB *sql.DB) error {
 		   run_at_utc TIMESTAMP NOT NULL,
 		   due_at_utc TIMESTAMP NOT NULL, -- run_at - remind_before
 		   remind_before_minutes INTEGER NOT NULL DEFAULT 0,
-		   status TEXT NOT NULL DEFAULT 'pending', -- pending|enqueued|done|cancelled|failed
+           status TEXT NOT NULL DEFAULT 'pending', -- pending|enqueued|cancelled
 		   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		 );`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_status_due ON jobs(status, due_at_utc);`,

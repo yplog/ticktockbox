@@ -107,12 +107,12 @@ func main() {
 	log.Printf("Updating past jobs status...")
 
 	result, err := repo.DB.ExecContext(ctx,
-		"UPDATE jobs SET status = 'completed' WHERE run_at_utc < ?",
+		"UPDATE jobs SET status = 'enqueued' WHERE run_at_utc < ?",
 		now)
 	must(err)
 
 	rowsAffected, _ := result.RowsAffected()
-	log.Printf("Updated %d past jobs to completed status", rowsAffected)
+	log.Printf("Updated %d past jobs to enqueued status", rowsAffected)
 
 	stats, err := getStats(ctx, repo)
 	must(err)
