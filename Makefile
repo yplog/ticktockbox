@@ -2,7 +2,7 @@
 
 # Variables
 BINARY_NAME=ticktockbox
-SERVER_BINARY=./bin/$(BINARY_NAME)-server
+SERVER_BINARY=./bin/$(BINARY_NAME)
 SOURCE_DIR=./cmd
 BUILD_DIR=./bin
 DOCKER_IMAGE=ticktockbox
