@@ -56,7 +56,6 @@ func (r *Repo) MarkEnqueued(ctx context.Context, id int64) error {
 	return err
 }
 
-
 func (r *Repo) Cancel(ctx context.Context, id int64) error {
 	_, err := r.DB.ExecContext(ctx, `UPDATE jobs SET status='cancelled' WHERE id=?`, id)
 
@@ -95,6 +94,7 @@ func (r *Repo) GetJobsPaginated(ctx context.Context, filter JobFilter) (*JobPage
 	if filter.Page < 1 {
 		filter.Page = 1
 	}
+
 	if filter.Limit < 1 {
 		filter.Limit = 50
 	}
@@ -112,6 +112,7 @@ func (r *Repo) GetJobsPaginated(ctx context.Context, filter JobFilter) (*JobPage
 	}
 
 	var total int
+
 	countQuery := `SELECT COUNT(*) FROM jobs WHERE ` + statusCondition
 	err := r.DB.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
@@ -126,6 +127,7 @@ func (r *Repo) GetJobsPaginated(ctx context.Context, filter JobFilter) (*JobPage
 		LIMIT ? OFFSET ?`
 
 	args = append(args, filter.Limit, offset)
+
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

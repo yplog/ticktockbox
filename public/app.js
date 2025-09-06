@@ -1,11 +1,7 @@
-// ticktockbox frontend helpers
-// Shows browser timezone, toggles job times between job TZ and browser TZ,
-// and renders relative "Due in" values.
-
-// Show detected browser TZ next to the toggle
 document.addEventListener('DOMContentLoaded', function(){
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const label = document.getElementById('view-browser-tz');
+
   if (label && label.parentElement) {
     const span = document.createElement('span');
     span.style.marginLeft = '6px';
@@ -16,7 +12,10 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 
-function pad2(n){ return n < 10 ? '0'+n : ''+n }
+function pad2(n){ 
+  return n < 10 ? '0'+n : ''+n 
+}
+
 function formatLocal(dtString) {
   const d = new Date(dtString);
   const yyyy = d.getFullYear();
@@ -25,13 +24,14 @@ function formatLocal(dtString) {
   const HH = pad2(d.getHours());
   const MM = pad2(d.getMinutes());
   const SS = pad2(d.getSeconds());
+
   return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}`;
 }
 
-// Exposed globally; used by checkbox onchange in template
 function toggleBrowserTZ(cb) {
   const runCells = document.querySelectorAll('td.dt-run');
   const dueCells = document.querySelectorAll('td.dt-due');
+
   runCells.forEach(td => {
     const utc = td.getAttribute('data-utc');
     const local = td.getAttribute('data-local');
@@ -43,6 +43,7 @@ function toggleBrowserTZ(cb) {
     td.textContent = cb.checked ? formatLocal(utc) : local;
   });
 }
+
 window.toggleBrowserTZ = toggleBrowserTZ;
 
 function formatDueInFromNow(dtString){
@@ -50,17 +51,22 @@ function formatDueInFromNow(dtString){
   const now = Date.now();
   let diff = target - now; // ms
   let suffix = 'in ';
+  
   if (diff < 0) { diff = -diff; suffix = ''; }
+  
   const sec = Math.floor(diff/1000);
   const d = Math.floor(sec/86400);
   const h = Math.floor((sec%86400)/3600);
   const m = Math.floor((sec%3600)/60);
   const s = Math.floor(sec%60);
+  
   let parts = [];
+  
   if (d>0) parts.push(d+'d');
   if (h>0 && parts.length<2) parts.push(h+'h');
   if (m>0 && parts.length<2) parts.push(m+'m');
   if (parts.length===0) parts.push(s+'s');
+  
   return suffix + parts.join(' ');
 }
 
@@ -78,7 +84,6 @@ function fillDueBrowser(){
   });
 }
 
-// Initial run and interval updates
 document.addEventListener('DOMContentLoaded', function(){
   tickDueIn();
   fillDueBrowser();
