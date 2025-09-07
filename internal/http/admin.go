@@ -69,11 +69,17 @@ func (a *AdminHandlers) Index(w http.ResponseWriter, r *http.Request) {
 	var rows []row
 	for _, j := range jobPage.Jobs {
 		loc, _ := time.LoadLocation(j.TZ)
+		dueIn := "-"
+
+		if j.Status == "pending" {
+			dueIn = humanizeUntil(j.DueAtUTC)
+		}
+
 		rows = append(rows, row{
 			Job:        j,
 			RunAtLocal: j.RunAtUTC.In(loc).Format("2006-01-02 15:04:05"),
 			DueAtLocal: j.DueAtUTC.In(loc).Format("2006-01-02 15:04:05"),
-			DueIn:      humanizeUntil(j.DueAtUTC),
+			DueIn:      dueIn,
 		})
 	}
 
