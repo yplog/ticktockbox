@@ -72,7 +72,15 @@ function formatDueInFromNow(dtString){
 
 function tickDueIn(){
   document.querySelectorAll('td.dt-duein').forEach(td => {
+    const status = (td.getAttribute('data-status') || '').toLowerCase();
+
+    if (status !== 'pending') {
+      td.textContent = '-';
+      return;
+    }
+    
     const utc = td.getAttribute('data-utc');
+    
     td.textContent = formatDueInFromNow(utc);
   });
 }
@@ -89,4 +97,3 @@ document.addEventListener('DOMContentLoaded', function(){
   fillDueBrowser();
   setInterval(tickDueIn, 30000);
 });
-

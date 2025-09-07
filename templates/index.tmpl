@@ -61,7 +61,7 @@
       <td class="dt-run" data-utc="{{rfc3339 .RunAtUTC}}" data-local="{{.RunAtLocal}}">{{.RunAtLocal}}</td>
       <td class="dt-due" data-utc="{{rfc3339 .DueAtUTC}}" data-local="{{.DueAtLocal}}">{{.DueAtLocal}}</td>
       <td class="dt-due-browser" data-utc="{{rfc3339 .DueAtUTC}}"></td>
-      <td class="dt-duein" data-utc="{{rfc3339 .DueAtUTC}}">{{.DueIn}}</td>
+      <td class="dt-duein" data-utc="{{rfc3339 .DueAtUTC}}" data-status="{{.Status}}">{{.DueIn}}</td>
       <td>
         <span style="padding: 2px 6px; border-radius: 3px; font-size: 0.8em; 
           {{if eq .Status "pending"}}background: #fff3cd; color: #856404;{{end}}
