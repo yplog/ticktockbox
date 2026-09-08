@@ -5,7 +5,7 @@ go 1.25.1
 require (
 	github.com/go-chi/chi/v5 v5.2.4
 	github.com/go-playground/validator/v10 v10.27.0
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/rabbitmq/amqp091-go v1.13.0
 	modernc.org/sqlite v1.38.2
 )
 
